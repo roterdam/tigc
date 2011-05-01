@@ -1,0 +1,305 @@
+package parser;
+
+import scanner.Scanner;
+import error.ErrorMsg;
+import absyn.*;
+
+action code
+{:
+    static symbol.Symbol sym(String id) {
+        return symbol.Symbol.symbol(id);
+    }
+:};
+
+parser code
+{:
+    private Scanner scanner;
+    private ErrorMsg errorMsg;
+
+    public Parser(Scanner scanner, ErrorMsg errorMsg) {
+        super(scanner);
+        this.scanner = scanner;
+        this.errorMsg = errorMsg;
+    }
+
+    public void report_error(String message, Object o) {
+        if (o instanceof java_cup.runtime.Symbol) {
+            java_cup.runtime.Symbol s = (java_cup.runtime.Symbol)o;
+
+            String m = message;
+            if (s.sym == sym.error)
+                m += ": " + s.value.toString();
+            errorMsg.report(m, s.left);
+        }
+    }
+
+    public void report_fatal_error(String message, Object o) {
+        errorMsg.report("Cannot recover from previous error(s). Halting");
+    }
+:};
+
+scan with {: return scanner.next_token(); :};
+
+/* Terminals (tokens returned by the scanner) */
+terminal            ARRAY, BREAK, DO, ELSE;
+terminal            END, FOR, FUNCTION, IF;
+terminal            IN, LET, NIL, OF;
+terminal            THEN, TO, TYPE, VAR, WHILE;
+
+terminal String     IDENTIFIER, STRING_CONSTANT;
+terminal Integer    INTEGER_CONSTANT;
+
+terminal            COMMA, COLON, SEMICOLON;
+terminal            LEFT_PARENTHESIS, RIGHT_PARENTHESIS;
+terminal            LEFT_SQUARE_BRACKET, RIGHT_SQUARE_BRACKET;
+terminal            LEFT_CURLY_BRACKET, RIGHT_CURLY_BRACKET;
+terminal            DOT, PLUS, MINUS, ASTERISK, SLASH, NEGATIVE;
+terminal            EQ, NEQ, LT, LEQ, GT, GEQ;
+terminal            AMPERSAND, VERTICAL_BAR, ASSIGNMENT;
+
+/* Non-terminals */
+non terminal Expr             expr;
+non terminal ExprList         expr_seq, expr_seq_opt, expr_list, expr_list_opt;
+non terminal FieldList        field_list, field_list_opt;
+non terminal Decl             declaration;
+non terminal DeclList         declaration_list;
+non terminal TypeDecl         type_declaration;
+non terminal VarDecl          variable_declaration;
+non terminal FuncDecl         function_declaration;
+non terminal Type             type;
+non terminal TypeField        type_field;
+non terminal TypeFields       type_fields, type_fields_opt;
+non terminal LValue           lvalue, lvalue_d;
+
+/* Precedences */
+precedence left     ELSE;
+//precedence left     LEFT_SQUARE_BRACKET;
+precedence nonassoc ASSIGNMENT;
+precedence left     VERTICAL_BAR;
+precedence left     AMPERSAND;
+precedence nonassoc EQ, NEQ, GT, LT, GEQ, LEQ;
+precedence left     PLUS, MINUS;
+precedence left     ASTERISK, SLASH;
+precedence left     NEGATIVE;
+
+/* The grammar */
+start with expr;
+
+expr        ::= STRING_CONSTANT:s
+                {: RESULT = new StringExpr(sleft, s); :}
+                |
+                INTEGER_CONSTANT:i
+                {: RESULT = new IntExpr(ileft, i); :}
+                |
+                NIL:e
+                {: RESULT = new NilExpr(eleft); :}
+                |
+                lvalue:lv
+                {: RESULT = new LValueExpr(lvleft, lv); :}
+                |
+                MINUS:m expr:e
+                {: RESULT = new NegationExpr(mleft, e); :}
+                %prec NEGATIVE
+                |
+                expr:e1 PLUS expr:e2
+                {: RESULT = new OpExpr(e1left, OpExpr.Op.ADD, e1, e2); :}
+                |
+                expr:e1 MINUS expr:e2
+                {: RESULT = new OpExpr(e1left, OpExpr.Op.SUB, e1, e2); :}
+                |
+                expr:e1 ASTERISK expr:e2
+                {: RESULT = new OpExpr(e1left, OpExpr.Op.MUL, e1, e2); :}
+                |
+                expr:e1 SLASH expr:e2
+                {: RESULT = new OpExpr(e1left, OpExpr.Op.DIV, e1, e2); :}
+                |
+                expr:e1 EQ expr:e2
+                {: RESULT = new OpExpr(e1left, OpExpr.Op.EQ, e1, e2); :}
+                |
+                expr:e1 NEQ expr:e2
+                {: RESULT = new OpExpr(e1left, OpExpr.Op.NEQ, e1, e2); :}
+                |
+                expr:e1 LT expr:e2
+                {: RESULT = new OpExpr(e1left, OpExpr.Op.LT, e1, e2); :}
+                |
+                expr:e1 GT expr:e2
+                {: RESULT = new OpExpr(e1left, OpExpr.Op.GT, e1, e2); :}
+                |
+                expr:e1 LEQ expr:e2
+                {: RESULT = new OpExpr(e1left, OpExpr.Op.LEQ, e1, e2); :}
+                |
+                expr:e1 GEQ expr:e2
+                {: RESULT = new OpExpr(e1left, OpExpr.Op.GEQ, e1, e2); :}
+                |
+                expr:e1 AMPERSAND expr:e2
+                {: RESULT = new OpExpr(e1left, OpExpr.Op.AND, e1, e2); :}
+                |
+                expr:e1 VERTICAL_BAR expr:e2
+                {: RESULT = new OpExpr(e1left, OpExpr.Op.OR, e1, e2); :}
+                |
+                lvalue:lv ASSIGNMENT expr:e
+                {: RESULT = new AssignmentExpr(lvleft, lv, e); :}
+                |
+                IDENTIFIER:id LEFT_PARENTHESIS expr_list_opt:param RIGHT_PARENTHESIS
+                {: RESULT = new CallExpr(idleft, sym(id), param); :}
+                |
+                LEFT_PARENTHESIS:l expr_seq_opt:e RIGHT_PARENTHESIS
+                {: RESULT = new SeqExpr(lleft, e); :}
+                |
+                IDENTIFIER:id LEFT_CURLY_BRACKET field_list_opt:fl RIGHT_CURLY_BRACKET
+                {: RESULT = new RecordExpr(idleft, sym(id), fl); :}
+                |
+                IDENTIFIER:id LEFT_SQUARE_BRACKET expr:size RIGHT_SQUARE_BRACKET OF expr:init
+                {: RESULT = new ArrayExpr(idleft, sym(id), size, init); :}
+                |
+                IF:l expr:cond THEN expr:thenc
+                {: RESULT = new IfExpr(lleft, cond, thenc); :}
+                |
+                IF:l expr:cond THEN expr:thenc ELSE expr:elsec
+                {: RESULT = new IfExpr(lleft, cond, thenc, elsec); :}
+                |
+                WHILE:l expr:cond DO expr:body
+                {: RESULT = new WhileExpr(lleft, cond, body); :}
+                |
+                FOR:l IDENTIFIER:id ASSIGNMENT expr:begin TO expr:end DO expr:body
+                {: RESULT = new ForExpr(lleft, sym(id), begin, end, body); :}
+                |
+                BREAK:l
+                {: RESULT = new BreakExpr(lleft); :}
+                |
+                LET:l declaration_list:decll IN expr_seq_opt:exprl END
+                {: RESULT = new LetExpr(lleft, decll, exprl); :}
+                ;
+
+expr_seq    ::= expr:e
+                {: RESULT = new ExprList(eleft, e, null); :}
+                |
+                expr:e SEMICOLON expr_seq:es
+                {: RESULT = new ExprList(eleft, e, es); :}
+                ;
+
+expr_seq_opt::= /* empty */
+                {: RESULT = null; :}
+                |
+                expr_seq:el
+                {: RESULT = el; :}
+                ;
+
+expr_list   ::= expr:e
+                {: RESULT = new ExprList(eleft, e, null); :}
+                |
+                expr:e COMMA expr_list:el
+                {: RESULT = new ExprList(eleft, e, el); :}
+                ;
+
+expr_list_opt
+            ::= /* empty */
+                {: RESULT = null; :}
+                |
+                expr_list:el
+                {: RESULT = el; :}
+                ;
+
+field_list  ::= IDENTIFIER:id EQ expr:v
+                {: RESULT = new FieldList(idleft, sym(id), v, null); :}
+                |
+                IDENTIFIER:id EQ expr:v COMMA field_list:fl
+                {: RESULT = new FieldList(idleft, sym(id), v, fl); :}
+                ;
+
+field_list_opt
+            ::= /* empty */
+                {: RESULT = null; :}
+                |
+                field_list:fl
+                {: RESULT = fl; :}
+                ;
+
+lvalue      ::= IDENTIFIER:id
+                {: RESULT = new VarLValue(idleft, sym(id)); :}
+                |
+                lvalue_d:lv
+                {: RESULT = lv; :}
+                ;
+
+lvalue_d    ::= IDENTIFIER:id LEFT_SQUARE_BRACKET expr:i RIGHT_SQUARE_BRACKET
+                {: RESULT = new SubscriptLValue(idleft, new VarLValue(idleft, sym(id)), i); :}
+                |
+                IDENTIFIER:v DOT IDENTIFIER:f
+                {: RESULT = new FieldLValue(vleft, new VarLValue(vleft, sym(v)), sym(f)); :}
+                |
+                lvalue_d:lv LEFT_SQUARE_BRACKET expr:i RIGHT_SQUARE_BRACKET
+                {: RESULT = new SubscriptLValue(lvleft, lv, i); :}
+                |
+                lvalue_d:lv DOT IDENTIFIER:f
+                {: RESULT = new FieldLValue(lvleft, lv, sym(f)); :}
+                ;
+
+declaration_list
+            ::= declaration:d
+                {: RESULT = new DeclList(dleft, d, null); :}
+                |
+                declaration:d declaration_list:dl
+                {: RESULT = new DeclList(dleft, d, dl); :}
+                ;
+
+declaration ::= type_declaration:d
+                {: RESULT = d; :}
+                |
+                variable_declaration:d
+                {: RESULT = d; :}
+                |
+                function_declaration:d
+                {: RESULT = d; :}
+                ;
+
+type_declaration
+            ::= TYPE:l IDENTIFIER:n EQ type:t
+                {: RESULT = new TypeDecl(lleft, sym(n), t); :}
+                ;
+
+type        ::= IDENTIFIER:n
+                {: RESULT = new NameType(nleft, sym(n)); :}
+                |
+                LEFT_CURLY_BRACKET:l type_fields_opt:tf RIGHT_CURLY_BRACKET
+                {: RESULT = new RecordType(lleft, tf); :}
+                |
+                ARRAY:l OF IDENTIFIER:t
+                {: RESULT = new ArrayType(lleft, sym(t)); :}
+                ;
+
+type_fields ::= type_field:tf
+                {: RESULT = new TypeFields(tfleft, tf, null); :}
+                |
+                type_field:tf COMMA type_fields:tfs
+                {: RESULT = new TypeFields(tfleft, tf, tfs); :}
+                ;
+
+type_fields_opt
+            ::= /* empty */
+                {: RESULT = null; :}
+                |
+                type_fields:tfs
+                {: RESULT = tfs; :}
+                ;
+
+type_field  ::= IDENTIFIER:n COLON IDENTIFIER:t
+                {: RESULT = new TypeField(nleft, sym(n), sym(t)); :}
+                ;
+
+variable_declaration
+            ::= VAR:l IDENTIFIER:var ASSIGNMENT expr:v
+                {: RESULT = new VarDecl(lleft, sym(var), v); :}
+                |
+                VAR:l IDENTIFIER:var COLON IDENTIFIER:t ASSIGNMENT expr:v
+                {: RESULT = new VarDecl(lleft, sym(var), sym(t), v); :}
+                ;
+
+function_declaration
+            ::= FUNCTION:l IDENTIFIER:f LEFT_PARENTHESIS type_fields_opt:p RIGHT_PARENTHESIS EQ expr:b
+                {: RESULT = new FuncDecl(lleft, sym(f), p, b); :}
+                |
+                FUNCTION:l IDENTIFIER:f LEFT_PARENTHESIS type_fields_opt:p RIGHT_PARENTHESIS COLON IDENTIFIER:t EQ expr:b
+                {: RESULT = new FuncDecl(lleft, sym(f), p, sym(t), b); :}
+                ;
+
