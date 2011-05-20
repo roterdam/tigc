@@ -19,11 +19,20 @@ class VarEntry extends Entry {
 
 class FuncEntry extends Entry {
     type.Record params;
+    java.util.HashSet<symbol.Symbol> foreigns;
+    java.util.HashSet<symbol.Symbol> invokings;
     type.Type result;
 
-    public FuncEntry(type.Record params, type.Type result) {
+    public FuncEntry(type.Record params, type.Type result,
+            java.util.HashSet<symbol.Symbol> foreigns, java.util.HashSet<symbol.Symbol> invokings) {
         this.params = params;
         this.result = result;
+        this.foreigns = foreigns;
+        this.invokings = invokings;
+    }
+
+    public FuncEntry(type.Record params, type.Type result) {
+        this(params, result, new java.util.HashSet<symbol.Symbol>(), new java.util.HashSet<symbol.Symbol>());
     }
 }
 

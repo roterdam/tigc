@@ -3,12 +3,15 @@ package semant;
 import symbol.*;
 import error.ErrorMsg;
 import absyn.*;
-import utils.SimpleLinkedList;
+import java.util.HashSet;
+import java.util.Stack;
 
 public class Semant {
     private Table<Entry> vt;
     private Table<type.Type> tt;
     private ErrorMsg e;
+
+    private Stack<FuncEntry> invokingStack;
 
     private Symbol sym(String s) {
         return Symbol.symbol(s);
@@ -81,6 +84,7 @@ public class Semant {
     public Semant(ErrorMsg em) {
         e = em;
 
+        invokingStack = new Stack<FuncEntry>();
         tt = new Table<type.Type>();
         vt = new Table<Entry>();
         initTypes();
@@ -96,8 +100,10 @@ public class Semant {
             e.report(left.toString() + " needed, but " + right.toString() + " given", pos);
     }
 
-    private SimpleLinkedList<Symbol> merge(SimpleLinkedList<Symbol> x, SimpleLinkedList<Symbol> y) {
-        return SimpleLinkedList.merge(x, y);
+    private HashSet<Symbol> merge(HashSet<Symbol> x, HashSet<Symbol> y) {
+        HashSet<Symbol> ret = new HashSet<Symbol>(x);
+        ret.addAll(y);
+        return ret;
     }
 
     private TranslateResult transExpr(absyn.Expr expr, boolean breakable) {
@@ -184,11 +190,11 @@ public class Semant {
         type.Record p = func.params;
         ExprList q = expr.args;
 
-        SimpleLinkedList<Symbol> foreigns = new SimpleLinkedList<Symbol>();
+        HashSet<Symbol> foreigns = new HashSet<Symbol>();
         while (p != null && !p.isEmpty() && q != null) {
             TranslateResult tq = transExpr(q.expr, breakable);
             checkType(p.type, tq.type, q.expr.pos);
-            foreigns = merge(foreigns, tq.foreigns);
+            foreigns.addAll(tq.foreigns);
 
             p = p.next;
             q = q.next;
@@ -196,6 +202,9 @@ public class Semant {
 
         if ((p != null && !p.isEmpty()) || q != null)
             this.e.report("Function param number mismatch", expr.pos);
+
+        if (!invokingStack.empty())
+            invokingStack.peek().invokings.add(expr.func);
         
         return new TranslateResult(null, func.result, foreigns);
     }
@@ -291,14 +300,14 @@ public class Semant {
             type.Record p = (type.Record) type.actual();
             FieldList q = expr.fields;
 
-            SimpleLinkedList<Symbol> foreigns = new SimpleLinkedList<Symbol>();
+            HashSet<Symbol> foreigns = new HashSet<Symbol>();
             while ((p != null && !p.isEmpty()) && q != null) {
                 if (p.field != q.name)
                     e.report("Field name mismatch: " + p.field.toString() + " expected but"
                            + q.name.toString() + " found", q.pos);
                 TranslateResult qr = transExpr(q.value, breakable);
                 checkType(p.type, qr.type, q.value.pos);
-                foreigns = merge(foreigns, qr.foreigns);
+                foreigns.addAll(qr.foreigns);
 
                 p = p.next;
                 q = q.next;
@@ -329,11 +338,11 @@ public class Semant {
 
     private TranslateResult transExprList(ExprList expr, boolean breakable) {
         type.Type retType = new type.Void();
-        SimpleLinkedList<Symbol> foreigns = new SimpleLinkedList<Symbol>();
+        HashSet<Symbol> foreigns = new HashSet<Symbol>();
         while (expr != null) {
             TranslateResult r = transExpr(expr.expr, breakable);
             retType = r.type;
-            foreigns = merge(foreigns, r.foreigns);
+            foreigns.addAll(r.foreigns);
             expr = expr.next;
         }
         return new TranslateResult(null, retType, foreigns);
@@ -343,7 +352,7 @@ public class Semant {
         if (expr == null)
             return new TranslateResult(null, null);
 
-        SimpleLinkedList<Symbol> foreigns = new SimpleLinkedList<Symbol>();
+        HashSet<Symbol> foreigns = new HashSet<Symbol>();
         if (expr.decl instanceof VarDecl) {
 
             VarDecl vd = (VarDecl) expr.decl;
@@ -359,7 +368,7 @@ public class Semant {
                 }
             } else {
                 TranslateResult ir = transExpr(vd.value, breakable);
-                foreigns = merge(foreigns, ir.foreigns);
+                foreigns.addAll(ir.foreigns);
                 type.Type type = ir.type;
                 type.Type a = type.actual();
                 if (a instanceof type.Nil || a instanceof type.Void) {
@@ -370,8 +379,8 @@ public class Semant {
                 vt.put(vd.id, new VarEntry(type));
             }
 
-            return new TranslateResult(null, null,
-                    merge(foreigns, transDeclList(expr.next, breakable).foreigns));
+            foreigns.addAll(transDeclList(expr.next, breakable).foreigns);
+            return new TranslateResult(null, null, foreigns);
 
         } else if (expr.decl instanceof TypeDecl) {
 
@@ -418,7 +427,7 @@ public class Semant {
                     vt.put(fd.name, new FuncEntry(transTypeFields(fd.params), result));
                 }
                 else
-                    e.report(fd.name.toString() + " already defined in the sasme block", fd.pos);
+                    e.report(fd.name.toString() + " already defined in the same block", fd.pos);
             }
             for (p = expr; p != null && p.decl instanceof FuncDecl; p = p.next) {
                 FuncDecl fd = (FuncDecl) p.decl;
@@ -428,20 +437,30 @@ public class Semant {
                 FuncEntry fe = (FuncEntry) vt.get(fd.name);
                 for (type.Record i = fe.params; i != null && !i.isEmpty(); i = i.next)
                     vt.put(i.field, new VarEntry(i.type));
+
+                invokingStack.push(fe);
                 TranslateResult te = transExpr(fd.body, false);
+                //fe.foreigns = te.foreigns;
+                invokingStack.pop();
+
                 checkType(fe.result, te.type, fd.body.pos);
 
                 String rp = "";
-                for (Symbol s: te.foreigns)
+                for (Symbol s: fe.foreigns)
                     rp += s.toString() + " ";
                 System.out.println(fd.name.toString() + " at " + new Integer(fd.pos).toString() + " has ref param: " + rp);
+                rp = "";
+                for (Symbol s: fe.invokings)
+                    rp += s.toString() + " ";
+                System.out.println(fd.name.toString() + " at " + new Integer(fd.pos).toString() + " has invokings: " + rp);
 
-                foreigns = merge(foreigns, te.foreigns);
+                foreigns.addAll(te.foreigns);
                 
                 vt.endScope();
             }
 
-            return new TranslateResult(null, null, merge(foreigns, transDeclList(p, breakable).foreigns));
+            foreigns.addAll(transDeclList(p, breakable).foreigns);
+            return new TranslateResult(null, null, foreigns);
 
         }
     }
@@ -506,7 +525,7 @@ public class Semant {
             VarLValue vl = (VarLValue) lvalue;
             Entry entry = vt.get(vl.name);
             type.Type type = null;
-            SimpleLinkedList<Symbol> foreigns = new SimpleLinkedList<Symbol>();
+            HashSet<Symbol> foreigns = new HashSet<Symbol>();
             if (entry == null) {
                 e.report("Undefined variable " + vl.name.toString()
                         + "; type INT assumed", vl.pos);
@@ -518,8 +537,11 @@ public class Semant {
                 type = ((VarEntry) entry).type;
                 if (assignment && !((VarEntry) entry).assignable)
                     e.report(vl.name.toString() + " cannot be assigned here", vl.pos);
-                if (vt.isForeign(vl.name))
+                if (vt.isForeign(vl.name)) {
+                    if (!invokingStack.empty())
+                        invokingStack.peek().foreigns.add(vl.name);
                     foreigns.add(vl.name);
+                }
             }
             return new TranslateResult(null, type, foreigns);
 
@@ -554,6 +576,7 @@ public class Semant {
                 ret = ((type.Array) ta).base;
             TranslateResult tr2 = transExpr(sl.expr, breakable);
             checkType(new type.Int(), tr2.type, sl.expr.pos);
+
             return new TranslateResult(null, ret, merge(tr.foreigns, tr2.foreigns));
 
         } 

@@ -9,16 +9,13 @@ JC2 = javac -d bin/ -cp bin/
 
 all: bin/Main.class
 
-debug: all bin/tester/SymbolTableTester.class bin/tester/ParserTester.class bin/tester/SemantTester.class bin/tester/Mid.class bin/tester/SimpleLinkedListTester.class
+debug: all bin/tester/SymbolTableTester.class bin/tester/ParserTester.class bin/tester/SemantTester.class bin/tester/Mid.class
 
 bin/Main.class: src/Main.java bin/parser/Parser.class bin/scanner/Scanner.class absyn bin/absyn/Printer.class bin/semant/Semant.class bin/error/ErrorMsg.class intermediate
 	$(JC) src/Main.java
 
 bin/tester/SymbolTableTester.class: src/tester/SymbolTableTester.java bin/symbol/Table.class bin/error/ErrorMsg.class
 	$(JC) src/tester/SymbolTableTester.java
-
-bin/tester/SimpleLinkedListTester.class: bin/utils/SimpleLinkedList.class src/tester/SimpleLinkedListTester.java
-	$(JC) src/tester/SimpleLinkedListTester.java
 
 bin/tester/ParserTester.class: src/tester/ParserTester.java bin/parser/Parser.class absyn bin/error/ErrorMsg.class
 	$(JC) src/tester/ParserTester.java
@@ -28,9 +25,6 @@ bin/tester/SemantTester.class: src/tester/SemantTester.java bin/parser/Parser.cl
 
 bin/tester/Mid.class: src/tester/Mid.java bin/parser/Parser.class absyn bin/semant/Semant.class
 	$(JC) src/tester/Mid.java
-
-bin/utils/SimpleLinkedList.class: src/utils/SimpleLinkedList.java
-	$(JC) src/utils/SimpleLinkedList.java
 
 
 bin/symbol/Symbol.class: src/symbol/Symbol.java
@@ -235,10 +229,10 @@ src/parser/sym.java: doc/parser.cup
 	cd src/parser; java -jar ../../lib/java-cup-11a.jar -parser Parser ../../doc/parser.cup
 
 
-bin/semant/Semant.class: src/semant/Semant.java bin/type/Type.class bin/type/Int.class bin/type/String.class bin/type/Record.class bin/type/EmptyRecord.class bin/type/Array.class bin/type/Name.class bin/type/Nil.class bin/type/Void.class bin/symbol/Table.class bin/error/ErrorMsg.class bin/semant/Entry.class bin/translate/Expr.class bin/semant/TranslateResult.class absyn
+bin/semant/Semant.class: src/semant/Semant.java bin/type/Type.class bin/type/Int.class bin/type/String.class bin/type/Record.class bin/type/EmptyRecord.class bin/type/Array.class bin/type/Name.class bin/type/Nil.class bin/type/Void.class bin/symbol/Table.class bin/error/ErrorMsg.class bin/semant/Entry.class bin/semant/TranslateResult.class absyn
 	$(JC) src/semant/Semant.java
 
-bin/semant/TranslateResult.class: bin/utils/SimpleLinkedList.class src/semant/TranslateResult.java
+bin/semant/TranslateResult.class: src/semant/TranslateResult.java
 	$(JC) src/semant/TranslateResult.java
 
 bin/semant/Entry.class: src/semant/Entry.java
@@ -272,10 +266,6 @@ bin/type/Name.class: src/type/Name.java bin/type/Type.class bin/symbol/Symbol.cl
 	$(JC) src/type/Name.java
 
 
-bin/translate/Expr.class: src/translate/Expr.java
-	$(JC) src/translate/Expr.java
-
-
 clean:
-	rm -fR src/scanner/Scanner.java src/scanner/Scanner.java~ src/parser/Parser.java src/parser/sym.java bin/Main.class bin/parser bin/scanner bin/absyn bin/symbol bin/tester bin/type bin/semant bin/error bin/translate
+	rm -fR src/scanner/Scanner.java src/scanner/Scanner.java~ src/parser/Parser.java src/parser/sym.java bin/Main.class bin/parser bin/scanner bin/absyn bin/symbol bin/tester bin/type bin/semant bin/error bin/translate bin/intermediate bin/utils
 

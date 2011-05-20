@@ -1,21 +1,21 @@
 package semant;
 
 import intermediate.*;
-import utils.SimpleLinkedList;
+import java.util.HashSet;
 
 class TranslateResult {
     type.Type type;
     IntermediateCodeList ic;
-    SimpleLinkedList<symbol.Symbol> foreigns;
+    HashSet<symbol.Symbol> foreigns;
 
-    public TranslateResult(IntermediateCodeList ic, type.Type type, SimpleLinkedList<symbol.Symbol> foreigns) {
+    public TranslateResult(IntermediateCodeList ic, type.Type type, HashSet<symbol.Symbol> foreigns) {
         this.type = type;
         this.ic = ic;
         this.foreigns = foreigns;
     }
 
     public TranslateResult(IntermediateCodeList ic, type.Type type) {
-        this(ic, type, new SimpleLinkedList<symbol.Symbol>());
+        this(ic, type, new HashSet<symbol.Symbol>());
     }
 }
 
