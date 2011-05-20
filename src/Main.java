@@ -3,6 +3,7 @@ import parser.Parser;
 import error.ErrorMsg;
 import absyn.*;
 import symbol.*;
+import semant.Semant;
 import java.io.*;
 
 public class Main {
@@ -23,10 +24,15 @@ public class Main {
 
         Parser parser = new Parser(new Scanner(reader), error);
         try {
-            Object sym = parser.parse();
+            Object absyn = parser.parse().value;
+            if (!error.hasError()) {
+                Semant semant = new Semant(error);
+                semant.translate((Expr) absyn);
+            }
         }
         catch (Exception e) {
             error.report(e.getMessage());
+            e.printStackTrace();
         }
     }
 }

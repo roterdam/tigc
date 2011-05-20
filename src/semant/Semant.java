@@ -3,6 +3,7 @@ package semant;
 import symbol.*;
 import error.ErrorMsg;
 import absyn.*;
+import utils.SimpleLinkedList;
 
 public class Semant {
     private Table<Entry> vt;
@@ -95,7 +96,11 @@ public class Semant {
             e.report(left.toString() + " needed, but " + right.toString() + " given", pos);
     }
 
-    private TypedExpr transExpr(absyn.Expr expr, boolean breakable) {
+    private SimpleLinkedList<Symbol> merge(SimpleLinkedList<Symbol> x, SimpleLinkedList<Symbol> y) {
+        return SimpleLinkedList.merge(x, y);
+    }
+
+    private TranslateResult transExpr(absyn.Expr expr, boolean breakable) {
         if (expr instanceof ArrayExpr)
             return transExpr((ArrayExpr) expr, breakable);
         else if (expr instanceof AssignmentExpr)
@@ -129,49 +134,49 @@ public class Semant {
         else if (expr instanceof WhileExpr)
             return transExpr((WhileExpr) expr, breakable);
         else
-            return new TypedExpr(null, new type.Int());
+            return new TranslateResult(null, new type.Int());
     }
 
-    private TypedExpr transExpr(ArrayExpr expr, boolean breakable) {
+    private TranslateResult transExpr(ArrayExpr expr, boolean breakable) {
         type.Type t = tt.get(expr.type), ta = t.actual();
         if (t == null) {
             e.report("Undefined type: " + expr.type.toString() + "; int array assumed.", expr.pos);
-            return new TypedExpr(null, new type.Array(new type.Int()));
+            return new TranslateResult(null, new type.Array(new type.Int()));
         } else if (!(ta instanceof type.Array)) {
             e.report(t.toString() + " is not an array type; int array assumed.");
-            return new TypedExpr(null, new type.Array(new type.Int()));
+            return new TranslateResult(null, new type.Array(new type.Int()));
         } else {
-            TypedExpr size = transExpr(expr.size, breakable);
+            TranslateResult size = transExpr(expr.size, breakable);
             checkType(new type.Int(), size.type, expr.size.pos);
-            TypedExpr init = transExpr(expr.init, breakable);
+            TranslateResult init = transExpr(expr.init, breakable);
             checkType(((type.Array)ta).base, init.type, expr.init.pos);
 
-            return new TypedExpr(null, t);
+            return new TranslateResult(null, t, merge(size.foreigns, init.foreigns));
         }
     }
 
-    private TypedExpr transExpr(AssignmentExpr expr, boolean breakable) {
-        TypedExpr l = transLValue(expr.lvalue, breakable, true);
-        TypedExpr r = transExpr(expr.e, breakable);
+    private TranslateResult transExpr(AssignmentExpr expr, boolean breakable) {
+        TranslateResult l = transLValue(expr.lvalue, breakable, true);
+        TranslateResult r = transExpr(expr.e, breakable);
         checkType(l.type, r.type, expr.pos);
-        return new TypedExpr(null, new type.Void());
+        return new TranslateResult(null, new type.Void(), merge(l.foreigns, r.foreigns));
     }
 
-    private TypedExpr transExpr(BreakExpr expr, boolean breakable) {
+    private TranslateResult transExpr(BreakExpr expr, boolean breakable) {
         if (!breakable)
             e.report("Invalid break", expr.pos);
-        return new TypedExpr(null, new type.Void());
+        return new TranslateResult(null, new type.Void());
     }
 
-    private TypedExpr transExpr(CallExpr expr, boolean breakable) {
+    private TranslateResult transExpr(CallExpr expr, boolean breakable) {
         Entry e = vt.get(expr.func);
         if (e == null) {
             this.e.report("Undefined function " + expr.func.toString() + "; assumed return VOID", expr.pos);
-            return new TypedExpr(null, new type.Void());
+            return new TranslateResult(null, new type.Void());
         }
         if (e instanceof VarEntry) {
             this.e.report(expr.func.toString() + " is not a function; assumed return VOID", expr.pos);
-            return new TypedExpr(null, new type.Void());
+            return new TranslateResult(null, new type.Void());
         }
 
         FuncEntry func = (FuncEntry)e;
@@ -179,9 +184,11 @@ public class Semant {
         type.Record p = func.params;
         ExprList q = expr.args;
 
+        SimpleLinkedList<Symbol> foreigns = new SimpleLinkedList<Symbol>();
         while (p != null && !p.isEmpty() && q != null) {
-            TypedExpr tq = transExpr(q.expr, breakable);
+            TranslateResult tq = transExpr(q.expr, breakable);
             checkType(p.type, tq.type, q.expr.pos);
+            foreigns = merge(foreigns, tq.foreigns);
 
             p = p.next;
             q = q.next;
@@ -190,64 +197,70 @@ public class Semant {
         if ((p != null && !p.isEmpty()) || q != null)
             this.e.report("Function param number mismatch", expr.pos);
         
-        return new TypedExpr(null, func.result);
+        return new TranslateResult(null, func.result, foreigns);
     }
 
-    private TypedExpr transExpr(ForExpr expr, boolean breakable) {
-        checkType(new type.Int(), transExpr(expr.begin, breakable).type, expr.begin.pos);
-        checkType(new type.Int(), transExpr(expr.end, breakable).type, expr.end.pos);
+    private TranslateResult transExpr(ForExpr expr, boolean breakable) {
+        TranslateResult br = transExpr(expr.begin, breakable),
+                        er = transExpr(expr.end, breakable);
+        checkType(new type.Int(), br.type, expr.begin.pos);
+        checkType(new type.Int(), er.type, expr.end.pos);
         vt.beginScope();
         vt.put(expr.var, new VarEntry(new type.Int(), false));
-        checkType(new type.Void(), transExpr(expr.body, true).type, expr.body.pos);
+        TranslateResult result = transExpr(expr.body, true);
+        checkType(new type.Void(), result.type, expr.body.pos);
         vt.endScope();
-        return new TypedExpr(null, new type.Void());
+        return new TranslateResult(null, new type.Void(), merge(merge(br.foreigns, er.foreigns), result.foreigns));
     }
 
-    private TypedExpr transExpr(IfExpr expr, boolean breakable) {
-        checkType(new type.Int(), transExpr(expr.condition, breakable).type, expr.condition.pos);
+    private TranslateResult transExpr(IfExpr expr, boolean breakable) {
+        TranslateResult cr = transExpr(expr.condition, breakable);
+        checkType(new type.Int(), cr.type, expr.condition.pos);
         if (expr.elseClause != null) {
-            type.Type then_t = transExpr(expr.thenClause, breakable).type;
-            type.Type else_t = transExpr(expr.elseClause, breakable).type;
-            checkType(then_t, else_t, expr.thenClause.pos);
-            return new TypedExpr(null, then_t);
+            TranslateResult thenr = transExpr(expr.thenClause, breakable);
+            TranslateResult elser = transExpr(expr.elseClause, breakable);
+            checkType(thenr.type, elser.type, expr.thenClause.pos);
+            return new TranslateResult(null, thenr.type, merge(cr.foreigns, merge(thenr.foreigns, elser.foreigns)));
         } else {
-            type.Type then_t = transExpr(expr.thenClause, breakable).type;
-            checkType(new type.Void(), then_t, expr.thenClause.pos);
-            return new TypedExpr(null, new type.Void());
+            TranslateResult thenr = transExpr(expr.thenClause, breakable);
+            checkType(new type.Void(), thenr.type, expr.thenClause.pos);
+            return new TranslateResult(null, new type.Void(), merge(cr.foreigns, thenr.foreigns));
         }
     }
 
-    private TypedExpr transExpr(IntExpr expr, boolean breakable) {
-        return new TypedExpr(null, new type.Int());
+    private TranslateResult transExpr(IntExpr expr, boolean breakable) {
+        return new TranslateResult(null, new type.Int());
     }
 
-    private TypedExpr transExpr(LetExpr expr, boolean breakable) {
+    private TranslateResult transExpr(LetExpr expr, boolean breakable) {
         vt.beginScope();
         tt.beginScope();
-        transDeclList(expr.decls, breakable);
-        TypedExpr te = transExprList(expr.exprs, breakable);
+        TranslateResult rd = transDeclList(expr.decls, breakable);
+        TranslateResult re = transExprList(expr.exprs, breakable);
         vt.endScope();
         tt.endScope();
-        return te;
+        return new TranslateResult(null, re.type, merge(rd.foreigns, re.foreigns));
     }
 
-    private TypedExpr transExpr(LValueExpr expr, boolean breakable) {
+    private TranslateResult transExpr(LValueExpr expr, boolean breakable) {
         return transLValue(expr.lvalue, breakable, false);
     }
 
-    private TypedExpr transExpr(NegationExpr expr, boolean breakable) {
-        TypedExpr te = transExpr(expr.value, breakable);
+    private TranslateResult transExpr(NegationExpr expr, boolean breakable) {
+        TranslateResult te = transExpr(expr.value, breakable);
         checkType(new type.Int(), te.type, expr.value.pos);
-        return new TypedExpr(null, new type.Int());
+        return new TranslateResult(null, new type.Int(), te.foreigns);
     }
 
-    private TypedExpr transExpr(NilExpr expr, boolean breakable) {
-        return new TypedExpr(null, new type.Nil());
+    private TranslateResult transExpr(NilExpr expr, boolean breakable) {
+        return new TranslateResult(null, new type.Nil());
     }
 
-    private TypedExpr transExpr(OpExpr expr, boolean breakable) {
-        type.Type ltype = transExpr(expr.left, breakable).type, la = ltype.actual(),
-            rtype = transExpr(expr.right, breakable).type, ra = rtype.actual();
+    private TranslateResult transExpr(OpExpr expr, boolean breakable) {
+        TranslateResult lr = transExpr(expr.left, breakable),
+                        rr = transExpr(expr.right, breakable);
+        type.Type ltype = lr.type, la = ltype.actual(),
+            rtype = rr.type, ra = rtype.actual();
         if (la instanceof type.Int || ra instanceof type.Int) {
             checkType(new type.Int(), la, expr.left.pos);
             checkType(new type.Int(), ra, expr.right.pos);
@@ -263,26 +276,29 @@ public class Semant {
         } else
             e.report("Invalid comparation between " + ltype.toString()
                     + " and " + rtype.toString(), expr.pos);
-        return new TypedExpr(null, new type.Int());
+        return new TranslateResult(null, new type.Int(), merge(lr.foreigns, rr.foreigns));
     }
 
-    private TypedExpr transExpr(RecordExpr expr, boolean breakable) {
+    private TranslateResult transExpr(RecordExpr expr, boolean breakable) {
         type.Type type = tt.get(expr.type);
         if (type == null) {
             e.report(expr.type.toString() + " undefined; empty RECORD assumed", expr.pos);
-            return new TypedExpr(null, new type.Record(null, null, null));
+            return new TranslateResult(null, new type.Record(null, null, null));
         } else if (!(type.actual() instanceof type.Record)) {
             e.report(type.toString() + " is not a record; empty RECORD assumed", expr.pos);
-            return new TypedExpr(null, new type.Record(null, null, null));
+            return new TranslateResult(null, new type.Record(null, null, null));
         } else {
             type.Record p = (type.Record) type.actual();
             FieldList q = expr.fields;
 
+            SimpleLinkedList<Symbol> foreigns = new SimpleLinkedList<Symbol>();
             while ((p != null && !p.isEmpty()) && q != null) {
                 if (p.field != q.name)
                     e.report("Field name mismatch: " + p.field.toString() + " expected but"
                            + q.name.toString() + " found", q.pos);
-                checkType(p.type, transExpr(q.value, breakable).type, q.value.pos);
+                TranslateResult qr = transExpr(q.value, breakable);
+                checkType(p.type, qr.type, q.value.pos);
+                foreigns = merge(foreigns, qr.foreigns);
 
                 p = p.next;
                 q = q.next;
@@ -291,37 +307,43 @@ public class Semant {
             if ((p != null && !p.isEmpty()) || q != null)
                 e.report("Field number mismatch", expr.fields.pos);
 
-            return new TypedExpr(null, type);
+            return new TranslateResult(null, type, foreigns);
         }
     }
 
-    private TypedExpr transExpr(SeqExpr expr, boolean breakable) {
+    private TranslateResult transExpr(SeqExpr expr, boolean breakable) {
         return transExprList(expr.exprList, breakable);
     }
 
-    private TypedExpr transExpr(StringExpr expr, boolean breakable) {
-        return new TypedExpr(null, new type.String());
+    private TranslateResult transExpr(StringExpr expr, boolean breakable) {
+        return new TranslateResult(null, new type.String());
     }
 
-    private TypedExpr transExpr(WhileExpr expr, boolean breakable) {
-        checkType(new type.Int(), transExpr(expr.condition, breakable).type, expr.condition.pos);
-        checkType(new type.Void(), transExpr(expr.body, true).type, expr.body.pos);
-        return new TypedExpr(null, new type.Void());
+    private TranslateResult transExpr(WhileExpr expr, boolean breakable) {
+        TranslateResult cr = transExpr(expr.condition, breakable);
+        TranslateResult br = transExpr(expr.body, true);
+        checkType(new type.Int(), cr.type, expr.condition.pos);
+        checkType(new type.Void(), br.type, expr.body.pos);
+        return new TranslateResult(null, new type.Void(), merge(cr.foreigns, br.foreigns));
     }
 
-    private TypedExpr transExprList(ExprList expr, boolean breakable) {
+    private TranslateResult transExprList(ExprList expr, boolean breakable) {
         type.Type retType = new type.Void();
+        SimpleLinkedList<Symbol> foreigns = new SimpleLinkedList<Symbol>();
         while (expr != null) {
-            retType = transExpr(expr.expr, breakable).type;
+            TranslateResult r = transExpr(expr.expr, breakable);
+            retType = r.type;
+            foreigns = merge(foreigns, r.foreigns);
             expr = expr.next;
         }
-        return new TypedExpr(null, retType);
+        return new TranslateResult(null, retType, foreigns);
     }
 
-    private void transDeclList(DeclList expr, boolean breakable) {
+    private TranslateResult transDeclList(DeclList expr, boolean breakable) {
         if (expr == null)
-            return;
+            return new TranslateResult(null, null);
 
+        SimpleLinkedList<Symbol> foreigns = new SimpleLinkedList<Symbol>();
         if (expr.decl instanceof VarDecl) {
 
             VarDecl vd = (VarDecl) expr.decl;
@@ -331,10 +353,14 @@ public class Semant {
                     e.report(vd.type.toString() + " undefined");
                 else {
                     vt.put(vd.id, new VarEntry(type));
-                    checkType(type, transExpr(vd.value, breakable).type, vd.value.pos);
+                    TranslateResult ir = transExpr(vd.value, breakable);
+                    checkType(type, ir.type, vd.value.pos);
+                    foreigns = merge(foreigns, ir.foreigns);
                 }
             } else {
-                type.Type type = transExpr(vd.value, breakable).type;
+                TranslateResult ir = transExpr(vd.value, breakable);
+                foreigns = merge(foreigns, ir.foreigns);
+                type.Type type = ir.type;
                 type.Type a = type.actual();
                 if (a instanceof type.Nil || a instanceof type.Void) {
                     e.report("Invalid initialize type: " + type.toString()
@@ -344,7 +370,8 @@ public class Semant {
                 vt.put(vd.id, new VarEntry(type));
             }
 
-            transDeclList(expr.next, breakable);
+            return new TranslateResult(null, null,
+                    merge(foreigns, transDeclList(expr.next, breakable).foreigns));
 
         } else if (expr.decl instanceof TypeDecl) {
 
@@ -371,9 +398,9 @@ public class Semant {
                 }
             }
 
-            transDeclList(p, breakable);
+            return transDeclList(p, breakable);
 
-        } else if (expr.decl instanceof FuncDecl) {
+        } else /*if (expr.decl instanceof FuncDecl)*/ {
 
             DeclList p = expr;
             java.util.HashSet<Symbol> set = new java.util.HashSet<Symbol>();
@@ -396,18 +423,25 @@ public class Semant {
             for (p = expr; p != null && p.decl instanceof FuncDecl; p = p.next) {
                 FuncDecl fd = (FuncDecl) p.decl;
                 
-                vt.beginScope();
+                vt.beginScope(true);
 
                 FuncEntry fe = (FuncEntry) vt.get(fd.name);
                 for (type.Record i = fe.params; i != null && !i.isEmpty(); i = i.next)
                     vt.put(i.field, new VarEntry(i.type));
-                TypedExpr te = transExpr(fd.body, false);
+                TranslateResult te = transExpr(fd.body, false);
                 checkType(fe.result, te.type, fd.body.pos);
+
+                String rp = "";
+                for (Symbol s: te.foreigns)
+                    rp += s.toString() + " ";
+                System.out.println(fd.name.toString() + " at " + new Integer(fd.pos).toString() + " has ref param: " + rp);
+
+                foreigns = merge(foreigns, te.foreigns);
                 
                 vt.endScope();
             }
 
-            transDeclList(p, breakable);
+            return new TranslateResult(null, null, merge(foreigns, transDeclList(p, breakable).foreigns));
 
         }
     }
@@ -466,12 +500,13 @@ public class Semant {
        }
     }
 
-    private TypedExpr transLValue(LValue lvalue, boolean breakable, boolean assignment) {
+    private TranslateResult transLValue(LValue lvalue, boolean breakable, boolean assignment) {
         if (lvalue instanceof VarLValue) {
 
             VarLValue vl = (VarLValue) lvalue;
             Entry entry = vt.get(vl.name);
             type.Type type = null;
+            SimpleLinkedList<Symbol> foreigns = new SimpleLinkedList<Symbol>();
             if (entry == null) {
                 e.report("Undefined variable " + vl.name.toString()
                         + "; type INT assumed", vl.pos);
@@ -483,14 +518,16 @@ public class Semant {
                 type = ((VarEntry) entry).type;
                 if (assignment && !((VarEntry) entry).assignable)
                     e.report(vl.name.toString() + " cannot be assigned here", vl.pos);
+                if (vt.isForeign(vl.name))
+                    foreigns.add(vl.name);
             }
-            return new TypedExpr(null, type);
+            return new TranslateResult(null, type, foreigns);
 
         } else if (lvalue instanceof FieldLValue) {
 
             FieldLValue fl = (FieldLValue) lvalue;
-            type.Type type = transLValue(fl.lvalue, breakable, assignment).type,
-                ta = type.actual(), ret = null;
+            TranslateResult tr = transLValue(fl.lvalue, breakable, assignment);
+            type.Type type = tr.type, ta = type.actual(), ret = null;
             if (ta instanceof type.Record) {
                 type.Record temp = (type.Record) ta;
                 ret = temp.findField(fl.id);
@@ -503,20 +540,21 @@ public class Semant {
                 e.report(type.toString() + " is not a RECORD; type INT assumed", fl.pos);
                 ret = new type.Int();
             }
-            return new TypedExpr(null, ret);
+            return new TranslateResult(null, ret, tr.foreigns);
 
         } else /*if (lvalue instanceof SubscriptLValue)*/ {
             
             SubscriptLValue sl = (SubscriptLValue) lvalue;
-            type.Type type = transLValue(sl.lvalue, breakable, assignment).type, 
-                ta = type.actual(), ret = null;
+            TranslateResult tr = transLValue(sl.lvalue, breakable, assignment);
+            type.Type type = tr.type, ta = type.actual(), ret = null;
             if (!(ta instanceof type.Array)) {
                 e.report(type.toString() + " is not an ARRAY", sl.pos);
                 ret = new type.Int();
             } else
                 ret = ((type.Array) ta).base;
-            checkType(new type.Int(), transExpr(sl.expr, breakable).type, sl.expr.pos);
-            return new TypedExpr(null, ret);
+            TranslateResult tr2 = transExpr(sl.expr, breakable);
+            checkType(new type.Int(), tr2.type, sl.expr.pos);
+            return new TranslateResult(null, ret, merge(tr.foreigns, tr2.foreigns));
 
         } 
     }

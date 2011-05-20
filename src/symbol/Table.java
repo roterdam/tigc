@@ -5,9 +5,11 @@ import java.util.*;
 class SingleTable<T> {
     private SingleTable<T> parent;
     private HashMap<Symbol, T> table = new HashMap<Symbol, T>();
+    private boolean mark;
 
-    public SingleTable(SingleTable<T> parent) {
+    public SingleTable(SingleTable<T> parent, boolean mark) {
         this.parent = parent;
+        this.mark = mark;
     }
 
     public void put(Symbol symbol, T value) {
@@ -24,13 +26,23 @@ class SingleTable<T> {
             return null;
     }
 
+    public boolean isForeign(Symbol symbol, int state) {
+        if (table.get(symbol) != null)
+            return state == 1;
+        if (parent == null)
+            return false;
+        if (state == 0 && mark == true)
+            state = 1;
+        return parent.isForeign(symbol, state);
+    }
+
     public SingleTable<T> getParent() {
         return parent;
     }
 }
 
 public class Table<T> {
-    SingleTable<T> head = new SingleTable<T>(null);
+    SingleTable<T> head = new SingleTable<T>(null, false);
     
     public Table() {
     }
@@ -43,16 +55,22 @@ public class Table<T> {
         return head.get(symbol);
     }
 
+    public boolean isForeign(Symbol symbol) {
+        return head.isForeign(symbol, 0);
+    }
+
     public void beginScope() {
-        SingleTable<T> t = new SingleTable<T>(head);
+        beginScope(false);
+    }
+
+    public void beginScope(boolean mark) {
+        SingleTable<T> t = new SingleTable<T>(head, mark);
         head = t;
     }
 
-    public void endScope() /*throws Exception*/ {
+    public void endScope() {
         if (head.getParent() != null)
             head = head.getParent();
-//        else
-//            throw new Exception("Scope doesn't match");
     }
 }
 
