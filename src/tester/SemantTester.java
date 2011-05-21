@@ -3,7 +3,7 @@ package tester;
 import absyn.*;
 import parser.*;
 import scanner.*;
-import error.*;
+import notifier.Notifier;
 import semant.Semant;
 import java.io.*;
 
@@ -37,14 +37,14 @@ public class SemantTester {
             if (!isTigerFile(source))
                 continue;
             
-            ErrorMsg error = new ErrorMsg(System.err);
+            Notifier notifier = new Notifier(System.err);
             System.out.print("Testing " + source + ": ");
 
             FileReader reader = null;
             try {
                 reader = new FileReader(source);
             } catch (FileNotFoundException e) {
-                error.report(e.getMessage());
+                notifier.reportError(e.getMessage());
                 continue;
             }
 
@@ -52,25 +52,25 @@ public class SemantTester {
             try {
                 writer = new FileWriter(source.substring(0, source.lastIndexOf('.')) + ".abs");
             } catch (IOException e) {
-                error.report(e.getMessage());
+                notifier.reportError(e.getMessage());
                 continue;
             }*/
 
 //            Printer printer = new Printer();
-            Parser parser = new Parser(new Scanner(reader), error);
+            Parser parser = new Parser(new Scanner(reader), notifier);
             try {
                 Absyn absyn = (Absyn)parser.parse().value;
-                if (!error.hasError()) {
+                if (!notifier.hasError()) {
 //                    printer.print((Expr)absyn, writer);
 //                    writer.close();
-                    Semant semant = new Semant(error);
+                    Semant semant = new Semant(notifier);
                     semant.translate((Expr) absyn);
-                    if (!error.hasError())
+                    if (!notifier.hasError())
                         System.out.println("OK");
                 }
             }
             catch (Exception e) {
-                error.report(e.getMessage());
+                notifier.reportError(e.getMessage());
                 e.printStackTrace();
                 continue;
             }

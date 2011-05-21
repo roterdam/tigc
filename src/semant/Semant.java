@@ -1,7 +1,7 @@
 package semant;
 
 import symbol.*;
-import error.ErrorMsg;
+import notifier.Notifier;
 import absyn.*;
 import java.util.HashSet;
 import java.util.Stack;
@@ -9,7 +9,7 @@ import java.util.Stack;
 public class Semant {
     private Table<Entry> vt;
     private Table<type.Type> tt;
-    private ErrorMsg e;
+    private Notifier notifier;
 
     private Stack<FuncEntry> invokingStack;
 
@@ -81,8 +81,8 @@ public class Semant {
                     new type.Void()));
     }
 
-    public Semant(ErrorMsg em) {
-        e = em;
+    public Semant(Notifier notifier) {
+        this.notifier = notifier;
 
         invokingStack = new Stack<FuncEntry>();
         tt = new Table<type.Type>();
@@ -97,13 +97,7 @@ public class Semant {
 
     private void checkType(type.Type left, type.Type right, int pos) {
         if (!right.fits(left))
-            e.report(left.toString() + " needed, but " + right.toString() + " given", pos);
-    }
-
-    private HashSet<Symbol> merge(HashSet<Symbol> x, HashSet<Symbol> y) {
-        HashSet<Symbol> ret = new HashSet<Symbol>(x);
-        ret.addAll(y);
-        return ret;
+            notifier.reportError(left.toString() + " needed, but " + right.toString() + " given", pos);
     }
 
     private TranslateResult transExpr(absyn.Expr expr, boolean breakable) {
@@ -146,10 +140,10 @@ public class Semant {
     private TranslateResult transExpr(ArrayExpr expr, boolean breakable) {
         type.Type t = tt.get(expr.type), ta = t.actual();
         if (t == null) {
-            e.report("Undefined type: " + expr.type.toString() + "; int array assumed.", expr.pos);
+            notifier.reportError("Undefined type: " + expr.type.toString() + "; int array assumed.", expr.pos);
             return new TranslateResult(null, new type.Array(new type.Int()));
         } else if (!(ta instanceof type.Array)) {
-            e.report(t.toString() + " is not an array type; int array assumed.");
+            notifier.reportError(t.toString() + " is not an array type; int array assumed.");
             return new TranslateResult(null, new type.Array(new type.Int()));
         } else {
             TranslateResult size = transExpr(expr.size, breakable);
@@ -157,7 +151,7 @@ public class Semant {
             TranslateResult init = transExpr(expr.init, breakable);
             checkType(((type.Array)ta).base, init.type, expr.init.pos);
 
-            return new TranslateResult(null, t, merge(size.foreigns, init.foreigns));
+            return new TranslateResult(null, t);
         }
     }
 
@@ -165,23 +159,23 @@ public class Semant {
         TranslateResult l = transLValue(expr.lvalue, breakable, true);
         TranslateResult r = transExpr(expr.e, breakable);
         checkType(l.type, r.type, expr.pos);
-        return new TranslateResult(null, new type.Void(), merge(l.foreigns, r.foreigns));
+        return new TranslateResult(null, new type.Void());
     }
 
     private TranslateResult transExpr(BreakExpr expr, boolean breakable) {
         if (!breakable)
-            e.report("Invalid break", expr.pos);
+            notifier.reportError("Invalid break", expr.pos);
         return new TranslateResult(null, new type.Void());
     }
 
     private TranslateResult transExpr(CallExpr expr, boolean breakable) {
         Entry e = vt.get(expr.func);
         if (e == null) {
-            this.e.report("Undefined function " + expr.func.toString() + "; assumed return VOID", expr.pos);
+            this.notifier.reportError("Undefined function " + expr.func.toString() + "; assumed return VOID", expr.pos);
             return new TranslateResult(null, new type.Void());
         }
         if (e instanceof VarEntry) {
-            this.e.report(expr.func.toString() + " is not a function; assumed return VOID", expr.pos);
+            this.notifier.reportError(expr.func.toString() + " is not a function; assumed return VOID", expr.pos);
             return new TranslateResult(null, new type.Void());
         }
 
@@ -190,23 +184,21 @@ public class Semant {
         type.Record p = func.params;
         ExprList q = expr.args;
 
-        HashSet<Symbol> foreigns = new HashSet<Symbol>();
         while (p != null && !p.isEmpty() && q != null) {
             TranslateResult tq = transExpr(q.expr, breakable);
             checkType(p.type, tq.type, q.expr.pos);
-            foreigns.addAll(tq.foreigns);
 
             p = p.next;
             q = q.next;
         }
 
         if ((p != null && !p.isEmpty()) || q != null)
-            this.e.report("Function param number mismatch", expr.pos);
+            this.notifier.reportError("Function param number mismatch", expr.pos);
 
         if (!invokingStack.empty())
             invokingStack.peek().invokings.add(expr.func);
         
-        return new TranslateResult(null, func.result, foreigns);
+        return new TranslateResult(null, func.result);
     }
 
     private TranslateResult transExpr(ForExpr expr, boolean breakable) {
@@ -219,7 +211,7 @@ public class Semant {
         TranslateResult result = transExpr(expr.body, true);
         checkType(new type.Void(), result.type, expr.body.pos);
         vt.endScope();
-        return new TranslateResult(null, new type.Void(), merge(merge(br.foreigns, er.foreigns), result.foreigns));
+        return new TranslateResult(null, new type.Void());
     }
 
     private TranslateResult transExpr(IfExpr expr, boolean breakable) {
@@ -229,11 +221,11 @@ public class Semant {
             TranslateResult thenr = transExpr(expr.thenClause, breakable);
             TranslateResult elser = transExpr(expr.elseClause, breakable);
             checkType(thenr.type, elser.type, expr.thenClause.pos);
-            return new TranslateResult(null, thenr.type, merge(cr.foreigns, merge(thenr.foreigns, elser.foreigns)));
+            return new TranslateResult(null, thenr.type);
         } else {
             TranslateResult thenr = transExpr(expr.thenClause, breakable);
             checkType(new type.Void(), thenr.type, expr.thenClause.pos);
-            return new TranslateResult(null, new type.Void(), merge(cr.foreigns, thenr.foreigns));
+            return new TranslateResult(null, new type.Void());
         }
     }
 
@@ -248,7 +240,7 @@ public class Semant {
         TranslateResult re = transExprList(expr.exprs, breakable);
         vt.endScope();
         tt.endScope();
-        return new TranslateResult(null, re.type, merge(rd.foreigns, re.foreigns));
+        return new TranslateResult(null, re.type);
     }
 
     private TranslateResult transExpr(LValueExpr expr, boolean breakable) {
@@ -258,7 +250,7 @@ public class Semant {
     private TranslateResult transExpr(NegationExpr expr, boolean breakable) {
         TranslateResult te = transExpr(expr.value, breakable);
         checkType(new type.Int(), te.type, expr.value.pos);
-        return new TranslateResult(null, new type.Int(), te.foreigns);
+        return new TranslateResult(null, new type.Int());
     }
 
     private TranslateResult transExpr(NilExpr expr, boolean breakable) {
@@ -280,43 +272,41 @@ public class Semant {
                 (la instanceof type.Array || la instanceof type.Record
                  || ra instanceof type.Array || ra instanceof type.Record)) {
             if (!(ltype.fits(rtype) || rtype.fits(ltype)))
-                e.report("Invalid comparation between " + ltype.toString()
+                notifier.reportError("Invalid comparation between " + ltype.toString()
                         + " and " + rtype.toString(), expr.pos);
         } else
-            e.report("Invalid comparation between " + ltype.toString()
+            notifier.reportError("Invalid comparation between " + ltype.toString()
                     + " and " + rtype.toString(), expr.pos);
-        return new TranslateResult(null, new type.Int(), merge(lr.foreigns, rr.foreigns));
+        return new TranslateResult(null, new type.Int());
     }
 
     private TranslateResult transExpr(RecordExpr expr, boolean breakable) {
         type.Type type = tt.get(expr.type);
         if (type == null) {
-            e.report(expr.type.toString() + " undefined; empty RECORD assumed", expr.pos);
+            notifier.reportError(expr.type.toString() + " undefined; empty RECORD assumed", expr.pos);
             return new TranslateResult(null, new type.Record(null, null, null));
         } else if (!(type.actual() instanceof type.Record)) {
-            e.report(type.toString() + " is not a record; empty RECORD assumed", expr.pos);
+            notifier.reportError(type.toString() + " is not a record; empty RECORD assumed", expr.pos);
             return new TranslateResult(null, new type.Record(null, null, null));
         } else {
             type.Record p = (type.Record) type.actual();
             FieldList q = expr.fields;
 
-            HashSet<Symbol> foreigns = new HashSet<Symbol>();
             while ((p != null && !p.isEmpty()) && q != null) {
                 if (p.field != q.name)
-                    e.report("Field name mismatch: " + p.field.toString() + " expected but"
+                    notifier.reportError("Field name mismatch: " + p.field.toString() + " expected but"
                            + q.name.toString() + " found", q.pos);
                 TranslateResult qr = transExpr(q.value, breakable);
                 checkType(p.type, qr.type, q.value.pos);
-                foreigns.addAll(qr.foreigns);
 
                 p = p.next;
                 q = q.next;
             }
 
             if ((p != null && !p.isEmpty()) || q != null)
-                e.report("Field number mismatch", expr.fields.pos);
+                notifier.reportError("Field number mismatch", expr.fields.pos);
 
-            return new TranslateResult(null, type, foreigns);
+            return new TranslateResult(null, type);
         }
     }
 
@@ -333,66 +323,60 @@ public class Semant {
         TranslateResult br = transExpr(expr.body, true);
         checkType(new type.Int(), cr.type, expr.condition.pos);
         checkType(new type.Void(), br.type, expr.body.pos);
-        return new TranslateResult(null, new type.Void(), merge(cr.foreigns, br.foreigns));
+        return new TranslateResult(null, new type.Void());
     }
 
     private TranslateResult transExprList(ExprList expr, boolean breakable) {
         type.Type retType = new type.Void();
-        HashSet<Symbol> foreigns = new HashSet<Symbol>();
         while (expr != null) {
             TranslateResult r = transExpr(expr.expr, breakable);
             retType = r.type;
-            foreigns.addAll(r.foreigns);
             expr = expr.next;
         }
-        return new TranslateResult(null, retType, foreigns);
+        return new TranslateResult(null, retType);
     }
 
     private TranslateResult transDeclList(DeclList expr, boolean breakable) {
         if (expr == null)
             return new TranslateResult(null, null);
 
-        HashSet<Symbol> foreigns = new HashSet<Symbol>();
         if (expr.decl instanceof VarDecl) {
 
             VarDecl vd = (VarDecl) expr.decl;
             if (vd.type != null) {
                 type.Type type = tt.get(vd.type);
                 if (type == null)
-                    e.report(vd.type.toString() + " undefined");
+                    notifier.reportError(vd.type.toString() + " undefined");
                 else {
                     vt.put(vd.id, new VarEntry(type));
                     TranslateResult ir = transExpr(vd.value, breakable);
                     checkType(type, ir.type, vd.value.pos);
-                    foreigns = merge(foreigns, ir.foreigns);
                 }
             } else {
                 TranslateResult ir = transExpr(vd.value, breakable);
-                foreigns.addAll(ir.foreigns);
                 type.Type type = ir.type;
                 type.Type a = type.actual();
                 if (a instanceof type.Nil || a instanceof type.Void) {
-                    e.report("Invalid initialize type: " + type.toString()
+                    notifier.reportError("Invalid initialize type: " + type.toString()
                             + "; INT assumed");
                     type = new type.Int();
                 }
                 vt.put(vd.id, new VarEntry(type));
             }
 
-            foreigns.addAll(transDeclList(expr.next, breakable).foreigns);
-            return new TranslateResult(null, null, foreigns);
+            return transDeclList(expr.next, breakable);
 
         } else if (expr.decl instanceof TypeDecl) {
 
             DeclList p = expr;
-            java.util.HashSet<Symbol> set = new java.util.HashSet<Symbol>();
+            HashSet<Symbol> set = new HashSet<Symbol>();
             for (p = expr; p != null && p.decl instanceof TypeDecl; p = p.next) {
                 TypeDecl td = (TypeDecl) p.decl;
 
                 if (set.add(td.name))
                     tt.put(td.name, new type.Name(td.name));
                 else
-                    e.report(td.name.toString() + " already defined in the same block", td.pos);
+                    notifier.reportError(td.name.toString() + " already defined in the same block", td.pos);
             }
             for (p = expr; p != null && p.decl instanceof TypeDecl; p = p.next) {
                 TypeDecl td = (TypeDecl) p.decl;
@@ -401,7 +385,7 @@ public class Semant {
             for (p = expr; p != null && p.decl instanceof TypeDecl; p = p.next) {
                 TypeDecl td = (TypeDecl) p.decl;
                 if (((type.Name) tt.get(td.name)).isLoop()) {
-                    e.report("Type declaration loop found on " + td.name.toString()
+                    notifier.reportError("Type declaration loop found on " + td.name.toString()
                             + "; INT assumed", td.pos);
                     ((type.Name) tt.get(td.name)).bind(new type.Int());
                 }
@@ -412,7 +396,7 @@ public class Semant {
         } else /*if (expr.decl instanceof FuncDecl)*/ {
 
             DeclList p = expr;
-            java.util.HashSet<Symbol> set = new java.util.HashSet<Symbol>();
+            HashSet<Symbol> set = new HashSet<Symbol>();
             for (p = expr; p != null && p.decl instanceof FuncDecl; p = p.next) {
                 FuncDecl fd = (FuncDecl) p.decl;
 
@@ -421,13 +405,13 @@ public class Semant {
                     if (fd.type != null)
                         result = tt.get(fd.type);
                     if (result == null) {
-                        e.report(fd.type.toString() + " undefined; assumed INT", fd.pos);
+                        notifier.reportError(fd.type.toString() + " undefined; assumed INT", fd.pos);
                         result = new type.Int();
                     }
                     vt.put(fd.name, new FuncEntry(transTypeFields(fd.params), result));
                 }
                 else
-                    e.report(fd.name.toString() + " already defined in the same block", fd.pos);
+                    notifier.reportError(fd.name.toString() + " already defined in the same block", fd.pos);
             }
             for (p = expr; p != null && p.decl instanceof FuncDecl; p = p.next) {
                 FuncDecl fd = (FuncDecl) p.decl;
@@ -440,7 +424,6 @@ public class Semant {
 
                 invokingStack.push(fe);
                 TranslateResult te = transExpr(fd.body, false);
-                //fe.foreigns = te.foreigns;
                 invokingStack.pop();
 
                 checkType(fe.result, te.type, fd.body.pos);
@@ -448,19 +431,16 @@ public class Semant {
                 String rp = "";
                 for (Symbol s: fe.foreigns)
                     rp += s.toString() + " ";
-                System.out.println(fd.name.toString() + " at " + new Integer(fd.pos).toString() + " has ref param: " + rp);
+                notifier.reportInfo(fd.name.toString() + " at " + new Integer(fd.pos).toString() + " has ref param: " + rp);
                 rp = "";
                 for (Symbol s: fe.invokings)
                     rp += s.toString() + " ";
-                System.out.println(fd.name.toString() + " at " + new Integer(fd.pos).toString() + " has invokings: " + rp);
+                notifier.reportInfo(fd.name.toString() + " at " + new Integer(fd.pos).toString() + " has invokings: " + rp);
 
-                foreigns.addAll(te.foreigns);
-                
                 vt.endScope();
             }
 
-            foreigns.addAll(transDeclList(p, breakable).foreigns);
-            return new TranslateResult(null, null, foreigns);
+            return transDeclList(p, breakable);
 
         }
     }
@@ -475,7 +455,7 @@ public class Semant {
             while (fields != null) {
                 type.Type fieldType = tt.get(fields.head.type);
                 if (fieldType == null) {
-                    e.report("Undefined type " + fields.head.type.toString()
+                    notifier.reportError("Undefined type " + fields.head.type.toString()
                             + "; INT assumed", fields.head.pos);
                     fieldType = new type.Int();
                 }
@@ -498,7 +478,7 @@ public class Semant {
             NameType nt = (NameType) type;
             type.Type t = tt.get(nt.name);
             if (t == null) {
-                e.report("Undefined type " + nt.name.toString()
+                notifier.reportError("Undefined type " + nt.name.toString()
                         + "; INT assumed", nt.pos);
                 t = new type.Int();
             }
@@ -507,7 +487,7 @@ public class Semant {
             ArrayType at = (ArrayType) type;
             type.Type t = tt.get(at.base);
             if (t == null) {
-                e.report("Undefined type " + at.base.toString()
+                notifier.reportError("Undefined type " + at.base.toString()
                         + "; INT assumed", at.pos);
                 t = new type.Int();
             }
@@ -525,25 +505,21 @@ public class Semant {
             VarLValue vl = (VarLValue) lvalue;
             Entry entry = vt.get(vl.name);
             type.Type type = null;
-            HashSet<Symbol> foreigns = new HashSet<Symbol>();
             if (entry == null) {
-                e.report("Undefined variable " + vl.name.toString()
+                notifier.reportError("Undefined variable " + vl.name.toString()
                         + "; type INT assumed", vl.pos);
                 type = new type.Int();
             } else if (entry instanceof FuncEntry) {
-                e.report(vl.name.toString() + " is a function, not a variable; type INT assumed", vl.pos);
+                notifier.reportError(vl.name.toString() + " is a function, not a variable; type INT assumed", vl.pos);
                 type = new type.Int();
             } else {
                 type = ((VarEntry) entry).type;
                 if (assignment && !((VarEntry) entry).assignable)
-                    e.report(vl.name.toString() + " cannot be assigned here", vl.pos);
-                if (vt.isForeign(vl.name)) {
-                    if (!invokingStack.empty())
-                        invokingStack.peek().foreigns.add(vl.name);
-                    foreigns.add(vl.name);
-                }
+                    notifier.reportError(vl.name.toString() + " cannot be assigned here", vl.pos);
+                if (vt.isForeign(vl.name) && !invokingStack.empty())
+                    invokingStack.peek().foreigns.add(vl.name);
             }
-            return new TranslateResult(null, type, foreigns);
+            return new TranslateResult(null, type);
 
         } else if (lvalue instanceof FieldLValue) {
 
@@ -554,15 +530,15 @@ public class Semant {
                 type.Record temp = (type.Record) ta;
                 ret = temp.findField(fl.id);
                 if (ret == null) {
-                    e.report(type.toString() + " do not have field " + fl.id
+                    notifier.reportError(type.toString() + " do not have field " + fl.id
                             + "; type INT assumed", fl.pos);
                     ret = new type.Int();
                 }
             } else {
-                e.report(type.toString() + " is not a RECORD; type INT assumed", fl.pos);
+                notifier.reportError(type.toString() + " is not a RECORD; type INT assumed", fl.pos);
                 ret = new type.Int();
             }
-            return new TranslateResult(null, ret, tr.foreigns);
+            return new TranslateResult(null, ret);
 
         } else /*if (lvalue instanceof SubscriptLValue)*/ {
             
@@ -570,14 +546,14 @@ public class Semant {
             TranslateResult tr = transLValue(sl.lvalue, breakable, assignment);
             type.Type type = tr.type, ta = type.actual(), ret = null;
             if (!(ta instanceof type.Array)) {
-                e.report(type.toString() + " is not an ARRAY", sl.pos);
+                notifier.reportError(type.toString() + " is not an ARRAY", sl.pos);
                 ret = new type.Int();
             } else
                 ret = ((type.Array) ta).base;
             TranslateResult tr2 = transExpr(sl.expr, breakable);
             checkType(new type.Int(), tr2.type, sl.expr.pos);
 
-            return new TranslateResult(null, ret, merge(tr.foreigns, tr2.foreigns));
+            return new TranslateResult(null, ret);
 
         } 
     }

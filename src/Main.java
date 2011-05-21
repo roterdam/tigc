@@ -1,6 +1,6 @@
 import scanner.Scanner;
 import parser.Parser;
-import error.ErrorMsg;
+import notifier.Notifier;
 import absyn.*;
 import symbol.*;
 import semant.Semant;
@@ -8,9 +8,9 @@ import java.io.*;
 
 public class Main {
     public static void main(String[] args) {
-        ErrorMsg error = new ErrorMsg(System.out);
+        Notifier notifier = new Notifier(System.out);
         if (args.length == 0) {
-            error.report("Missing filepath");
+            notifier.reportError("Missing filepath");
             return;
         }
 
@@ -18,20 +18,22 @@ public class Main {
         try {
             reader = new FileReader(args[0]);
         } catch (FileNotFoundException e) {
-            error.report(e.getMessage());
+            notifier.reportError(e.getMessage());
             return;
         }
 
-        Parser parser = new Parser(new Scanner(reader), error);
+        Parser parser = new Parser(new Scanner(reader), notifier);
         try {
             Object absyn = parser.parse().value;
-            if (!error.hasError()) {
-                Semant semant = new Semant(error);
+            if (!notifier.hasError()) {
+                Semant semant = new Semant(notifier);
                 semant.translate((Expr) absyn);
+            } else {
+                notifier.reportSummary();
             }
         }
         catch (Exception e) {
-            error.report(e.getMessage());
+            notifier.reportError(e.getMessage());
             e.printStackTrace();
         }
     }

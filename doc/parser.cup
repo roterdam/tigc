@@ -1,7 +1,7 @@
 package parser;
 
 import scanner.Scanner;
-import error.ErrorMsg;
+import notifier.Notifier;
 import absyn.*;
 
 action code
@@ -14,12 +14,12 @@ action code
 parser code
 {:
     private Scanner scanner;
-    private ErrorMsg errorMsg;
+    private Notifier notifier;
 
-    public Parser(Scanner scanner, ErrorMsg errorMsg) {
+    public Parser(Scanner scanner, Notifier notifier) {
         super(scanner);
         this.scanner = scanner;
-        this.errorMsg = errorMsg;
+        this.notifier = notifier;
     }
 
     public void report_error(String message, Object o) {
@@ -29,12 +29,12 @@ parser code
             String m = message;
             if (s.sym == sym.error)
                 m += ": " + s.value.toString();
-            errorMsg.report(m, s.left);
+            notifier.reportError(m, s.left);
         }
     }
 
     public void report_fatal_error(String message, Object o) {
-        errorMsg.report("Cannot recover from previous error(s). Halting");
+        notifier.reportError("Cannot recover from previous error(s). Halting");
     }
 :};
 
