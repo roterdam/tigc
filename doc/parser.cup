@@ -34,7 +34,7 @@ parser code
     }
 
     public void report_fatal_error(String message, Object o) {
-        notifier.error("Cannot recover from previous error(s). Halting");
+        notifier.message("Cannot recover from previous error(s). Halting");
     }
 :};
 
