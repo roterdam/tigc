@@ -10,7 +10,7 @@ public class Main {
     public static void main(String[] args) {
         Notifier notifier = new Notifier(System.out);
         if (args.length == 0) {
-            notifier.reportError("Missing filepath");
+            notifier.error("Missing filepath");
             return;
         }
 
@@ -18,22 +18,24 @@ public class Main {
         try {
             reader = new FileReader(args[0]);
         } catch (FileNotFoundException e) {
-            notifier.reportError(e.getMessage());
+            notifier.error(e.getMessage());
             return;
         }
 
         Parser parser = new Parser(new Scanner(reader), notifier);
         try {
-            Object absyn = parser.parse().value;
+            java_cup.runtime.Symbol absyn = parser.parse();
             if (!notifier.hasError()) {
                 Semant semant = new Semant(notifier);
-                semant.translate((Expr) absyn);
-            } else {
-                notifier.reportSummary();
+                semant.translate((Expr) absyn.value);
+            }
+            
+            if (notifier.hasError()) {
+                notifier.printSummary();
             }
         }
         catch (Exception e) {
-            notifier.reportError(e.getMessage());
+            notifier.error(e.getMessage());
             e.printStackTrace();
         }
     }

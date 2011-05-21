@@ -18,7 +18,7 @@ public class ParserTester {
             try {
                 reader = new FileReader(source);
             } catch (FileNotFoundException e) {
-                notifier.reportError(e.getMessage());
+                notifier.error(e.getMessage());
                 continue;
             }
 
@@ -26,7 +26,7 @@ public class ParserTester {
             try {
                 writer = new FileWriter(source.substring(0, source.lastIndexOf('.')) + ".abs");
             } catch (IOException e) {
-                notifier.reportError(e.getMessage());
+                notifier.error(e.getMessage());
                 continue;
             }
 
@@ -41,7 +41,7 @@ public class ParserTester {
                 }
             }
             catch (Exception e) {
-                notifier.reportError(e.getMessage());
+                notifier.error(e.getMessage());
                 continue;
             }
         }

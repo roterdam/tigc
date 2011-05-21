@@ -22,7 +22,7 @@ public class Mid {
         try {
             reader = new FileReader(source);
         } catch (FileNotFoundException e) {
-            notifier.reportError(e.getMessage());
+            notifier.error(e.getMessage());
             System.exit(1);
         }
 
@@ -30,7 +30,7 @@ public class Mid {
         try {
             writer = new BufferedWriter(new FileWriter(source.substring(0, source.lastIndexOf('.')) + ".abs"));
         } catch (IOException e) {
-            notifier.reportError(e.getMessage());
+            notifier.error(e.getMessage());
             System.exit(1);
         }
 
@@ -46,7 +46,7 @@ public class Mid {
             }
         }
         catch (Exception e) {
-            notifier.reportError(e.getMessage());
+            notifier.error(e.getMessage());
             e.printStackTrace();
             System.exit(1);
         }

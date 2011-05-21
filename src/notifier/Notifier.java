@@ -9,29 +9,35 @@ public class Notifier {
         this.stream = s;
     }
 
-    public void reportError(String message) {
+    private void println(String message) {
+        stream.println(message);
+    }
+
+    public void error(String message) {
         ++errorCount;
-        stream.println("ERROR " + message);
+        println("ERROR " + message);
     }
 
-    public void reportError(String message, int line) {
-        reportError(new Integer(line + 1).toString() + ": " + message);
+    public void error(String message, int line) {
+        ++errorCount;
+        println(new Integer(line + 1).toString() + ": ERROR " + message);
     }
 
-    public void reportWarning(String message) {
+    public void warning(String message) {
         ++warningCount;
-        stream.println("WARNING " + message);
+        println("WARNING " + message);
     }
 
-    public void reportWarning(String message, int line) {
-        reportWarning(new Integer(line + 1).toString() + ": " + message);
+    public void warning(String message, int line) {
+        ++warningCount;
+        println(new Integer(line + 1).toString() + ": WARNING " + message);
     }
 
-    public void reportInfo(String info) {
-        stream.println(info);
+    public void message(String info) {
+        println(info);
     }
 
-    public void reportSummary() {
+    public void printSummary() {
         String s = "";
         if (errorCount > 0)
             s += new Integer(errorCount).toString() + " error(s)";
@@ -41,10 +47,11 @@ public class Notifier {
             s += new Integer(warningCount).toString() + " warning(s)";
         }
         if (s.length() > 0)
-            stream.println(s);
+            println("Compile failed: " + s);
     }
 
     public boolean hasError() {
         return errorCount > 0;
     }
 }
+

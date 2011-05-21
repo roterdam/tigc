@@ -29,12 +29,12 @@ parser code
             String m = message;
             if (s.sym == sym.error)
                 m += ": " + s.value.toString();
-            notifier.reportError(m, s.left);
+            notifier.error(m, s.left);
         }
     }
 
     public void report_fatal_error(String message, Object o) {
-        notifier.reportError("Cannot recover from previous error(s). Halting");
+        notifier.error("Cannot recover from previous error(s). Halting");
     }
 :};
 

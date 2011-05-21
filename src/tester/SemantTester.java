@@ -44,7 +44,7 @@ public class SemantTester {
             try {
                 reader = new FileReader(source);
             } catch (FileNotFoundException e) {
-                notifier.reportError(e.getMessage());
+                notifier.error(e.getMessage());
                 continue;
             }
 
@@ -52,7 +52,7 @@ public class SemantTester {
             try {
                 writer = new FileWriter(source.substring(0, source.lastIndexOf('.')) + ".abs");
             } catch (IOException e) {
-                notifier.reportError(e.getMessage());
+                notifier.error(e.getMessage());
                 continue;
             }*/
 
@@ -70,7 +70,7 @@ public class SemantTester {
                 }
             }
             catch (Exception e) {
-                notifier.reportError(e.getMessage());
+                notifier.error(e.getMessage());
                 e.printStackTrace();
                 continue;
             }

@@ -97,7 +97,7 @@ public class Semant {
 
     private void checkType(type.Type left, type.Type right, int pos) {
         if (!right.fits(left))
-            notifier.reportError(left.toString() + " needed, but " + right.toString() + " given", pos);
+            notifier.error(left.toString() + " needed, but " + right.toString() + " given", pos);
     }
 
     private TranslateResult transExpr(absyn.Expr expr, boolean breakable) {
@@ -140,10 +140,10 @@ public class Semant {
     private TranslateResult transExpr(ArrayExpr expr, boolean breakable) {
         type.Type t = tt.get(expr.type), ta = t.actual();
         if (t == null) {
-            notifier.reportError("Undefined type: " + expr.type.toString() + "; int array assumed.", expr.pos);
+            notifier.error("Undefined type: " + expr.type.toString() + "; int array assumed.", expr.pos);
             return new TranslateResult(null, new type.Array(new type.Int()));
         } else if (!(ta instanceof type.Array)) {
-            notifier.reportError(t.toString() + " is not an array type; int array assumed.");
+            notifier.error(t.toString() + " is not an array type; int array assumed.");
             return new TranslateResult(null, new type.Array(new type.Int()));
         } else {
             TranslateResult size = transExpr(expr.size, breakable);
@@ -164,18 +164,18 @@ public class Semant {
 
     private TranslateResult transExpr(BreakExpr expr, boolean breakable) {
         if (!breakable)
-            notifier.reportError("Invalid break", expr.pos);
+            notifier.error("Invalid break", expr.pos);
         return new TranslateResult(null, new type.Void());
     }
 
     private TranslateResult transExpr(CallExpr expr, boolean breakable) {
         Entry e = vt.get(expr.func);
         if (e == null) {
-            this.notifier.reportError("Undefined function " + expr.func.toString() + "; assumed return VOID", expr.pos);
+            notifier.error("Undefined function " + expr.func.toString() + "; assumed return VOID", expr.pos);
             return new TranslateResult(null, new type.Void());
         }
         if (e instanceof VarEntry) {
-            this.notifier.reportError(expr.func.toString() + " is not a function; assumed return VOID", expr.pos);
+            notifier.error(expr.func.toString() + " is not a function; assumed return VOID", expr.pos);
             return new TranslateResult(null, new type.Void());
         }
 
@@ -193,7 +193,7 @@ public class Semant {
         }
 
         if ((p != null && !p.isEmpty()) || q != null)
-            this.notifier.reportError("Function param number mismatch", expr.pos);
+            notifier.error("Function param number mismatch", expr.pos);
 
         if (!invokingStack.empty())
             invokingStack.peek().invokings.add(expr.func);
@@ -266,16 +266,22 @@ public class Semant {
             checkType(new type.Int(), la, expr.left.pos);
             checkType(new type.Int(), ra, expr.right.pos);
         } else if (la instanceof type.String || ra instanceof type.String) {
-            checkType(new type.String(), la, expr.left.pos);
-            checkType(new type.String(), ra, expr.right.pos);
+            if (expr.op == OpExpr.Op.EQ || expr.op == OpExpr.Op.NEQ
+                    || expr.op == OpExpr.Op.LT || expr.op == OpExpr.Op.LEQ
+                    || expr.op == OpExpr.Op.GT || expr.op == OpExpr.Op.GEQ) {
+                checkType(new type.String(), la, expr.left.pos);
+                checkType(new type.String(), ra, expr.right.pos);
+            } else {
+                notifier.error("Invalid comparation between strings", expr.pos);
+            }
         } else if ((expr.op == OpExpr.Op.EQ || expr.op == OpExpr.Op.NEQ) &&
                 (la instanceof type.Array || la instanceof type.Record
                  || ra instanceof type.Array || ra instanceof type.Record)) {
             if (!(ltype.fits(rtype) || rtype.fits(ltype)))
-                notifier.reportError("Invalid comparation between " + ltype.toString()
+                notifier.error("Invalid comparation between " + ltype.toString()
                         + " and " + rtype.toString(), expr.pos);
         } else
-            notifier.reportError("Invalid comparation between " + ltype.toString()
+            notifier.error("Invalid comparation between " + ltype.toString()
                     + " and " + rtype.toString(), expr.pos);
         return new TranslateResult(null, new type.Int());
     }
@@ -283,10 +289,10 @@ public class Semant {
     private TranslateResult transExpr(RecordExpr expr, boolean breakable) {
         type.Type type = tt.get(expr.type);
         if (type == null) {
-            notifier.reportError(expr.type.toString() + " undefined; empty RECORD assumed", expr.pos);
+            notifier.error(expr.type.toString() + " undefined; empty RECORD assumed", expr.pos);
             return new TranslateResult(null, new type.Record(null, null, null));
         } else if (!(type.actual() instanceof type.Record)) {
-            notifier.reportError(type.toString() + " is not a record; empty RECORD assumed", expr.pos);
+            notifier.error(type.toString() + " is not a record; empty RECORD assumed", expr.pos);
             return new TranslateResult(null, new type.Record(null, null, null));
         } else {
             type.Record p = (type.Record) type.actual();
@@ -294,7 +300,7 @@ public class Semant {
 
             while ((p != null && !p.isEmpty()) && q != null) {
                 if (p.field != q.name)
-                    notifier.reportError("Field name mismatch: " + p.field.toString() + " expected but"
+                    notifier.error("Field name mismatch: " + p.field.toString() + " expected but"
                            + q.name.toString() + " found", q.pos);
                 TranslateResult qr = transExpr(q.value, breakable);
                 checkType(p.type, qr.type, q.value.pos);
@@ -304,7 +310,7 @@ public class Semant {
             }
 
             if ((p != null && !p.isEmpty()) || q != null)
-                notifier.reportError("Field number mismatch", expr.fields.pos);
+                notifier.error("Field number mismatch", expr.fields.pos);
 
             return new TranslateResult(null, type);
         }
@@ -346,7 +352,7 @@ public class Semant {
             if (vd.type != null) {
                 type.Type type = tt.get(vd.type);
                 if (type == null)
-                    notifier.reportError(vd.type.toString() + " undefined");
+                    notifier.error(vd.type.toString() + " undefined");
                 else {
                     vt.put(vd.id, new VarEntry(type));
                     TranslateResult ir = transExpr(vd.value, breakable);
@@ -357,7 +363,7 @@ public class Semant {
                 type.Type type = ir.type;
                 type.Type a = type.actual();
                 if (a instanceof type.Nil || a instanceof type.Void) {
-                    notifier.reportError("Invalid initialize type: " + type.toString()
+                    notifier.error("Invalid initialize type: " + type.toString()
                             + "; INT assumed");
                     type = new type.Int();
                 }
@@ -376,7 +382,7 @@ public class Semant {
                 if (set.add(td.name))
                     tt.put(td.name, new type.Name(td.name));
                 else
-                    notifier.reportError(td.name.toString() + " already defined in the same block", td.pos);
+                    notifier.error(td.name.toString() + " already defined in the same block", td.pos);
             }
             for (p = expr; p != null && p.decl instanceof TypeDecl; p = p.next) {
                 TypeDecl td = (TypeDecl) p.decl;
@@ -385,7 +391,7 @@ public class Semant {
             for (p = expr; p != null && p.decl instanceof TypeDecl; p = p.next) {
                 TypeDecl td = (TypeDecl) p.decl;
                 if (((type.Name) tt.get(td.name)).isLoop()) {
-                    notifier.reportError("Type declaration loop found on " + td.name.toString()
+                    notifier.error("Type declaration loop found on " + td.name.toString()
                             + "; INT assumed", td.pos);
                     ((type.Name) tt.get(td.name)).bind(new type.Int());
                 }
@@ -405,13 +411,13 @@ public class Semant {
                     if (fd.type != null)
                         result = tt.get(fd.type);
                     if (result == null) {
-                        notifier.reportError(fd.type.toString() + " undefined; assumed INT", fd.pos);
+                        notifier.error(fd.type.toString() + " undefined; assumed INT", fd.pos);
                         result = new type.Int();
                     }
                     vt.put(fd.name, new FuncEntry(transTypeFields(fd.params), result));
                 }
                 else
-                    notifier.reportError(fd.name.toString() + " already defined in the same block", fd.pos);
+                    notifier.error(fd.name.toString() + " already defined in the same block", fd.pos);
             }
             for (p = expr; p != null && p.decl instanceof FuncDecl; p = p.next) {
                 FuncDecl fd = (FuncDecl) p.decl;
@@ -431,11 +437,11 @@ public class Semant {
                 String rp = "";
                 for (Symbol s: fe.foreigns)
                     rp += s.toString() + " ";
-                notifier.reportInfo(fd.name.toString() + " at " + new Integer(fd.pos).toString() + " has ref param: " + rp);
+                notifier.message(fd.name.toString() + " at " + new Integer(fd.pos).toString() + " has ref param: " + rp);
                 rp = "";
                 for (Symbol s: fe.invokings)
                     rp += s.toString() + " ";
-                notifier.reportInfo(fd.name.toString() + " at " + new Integer(fd.pos).toString() + " has invokings: " + rp);
+                notifier.message(fd.name.toString() + " at " + new Integer(fd.pos).toString() + " has invokings: " + rp);
 
                 vt.endScope();
             }
@@ -455,7 +461,7 @@ public class Semant {
             while (fields != null) {
                 type.Type fieldType = tt.get(fields.head.type);
                 if (fieldType == null) {
-                    notifier.reportError("Undefined type " + fields.head.type.toString()
+                    notifier.error("Undefined type " + fields.head.type.toString()
                             + "; INT assumed", fields.head.pos);
                     fieldType = new type.Int();
                 }
@@ -478,7 +484,7 @@ public class Semant {
             NameType nt = (NameType) type;
             type.Type t = tt.get(nt.name);
             if (t == null) {
-                notifier.reportError("Undefined type " + nt.name.toString()
+                notifier.error("Undefined type " + nt.name.toString()
                         + "; INT assumed", nt.pos);
                 t = new type.Int();
             }
@@ -487,7 +493,7 @@ public class Semant {
             ArrayType at = (ArrayType) type;
             type.Type t = tt.get(at.base);
             if (t == null) {
-                notifier.reportError("Undefined type " + at.base.toString()
+                notifier.error("Undefined type " + at.base.toString()
                         + "; INT assumed", at.pos);
                 t = new type.Int();
             }
@@ -506,16 +512,16 @@ public class Semant {
             Entry entry = vt.get(vl.name);
             type.Type type = null;
             if (entry == null) {
-                notifier.reportError("Undefined variable " + vl.name.toString()
+                notifier.error("Undefined variable " + vl.name.toString()
                         + "; type INT assumed", vl.pos);
                 type = new type.Int();
             } else if (entry instanceof FuncEntry) {
-                notifier.reportError(vl.name.toString() + " is a function, not a variable; type INT assumed", vl.pos);
+                notifier.error(vl.name.toString() + " is a function, not a variable; type INT assumed", vl.pos);
                 type = new type.Int();
             } else {
                 type = ((VarEntry) entry).type;
                 if (assignment && !((VarEntry) entry).assignable)
-                    notifier.reportError(vl.name.toString() + " cannot be assigned here", vl.pos);
+                    notifier.error(vl.name.toString() + " cannot be assigned here", vl.pos);
                 if (vt.isForeign(vl.name) && !invokingStack.empty())
                     invokingStack.peek().foreigns.add(vl.name);
             }
@@ -530,12 +536,12 @@ public class Semant {
                 type.Record temp = (type.Record) ta;
                 ret = temp.findField(fl.id);
                 if (ret == null) {
-                    notifier.reportError(type.toString() + " do not have field " + fl.id
+                    notifier.error(type.toString() + " do not have field " + fl.id
                             + "; type INT assumed", fl.pos);
                     ret = new type.Int();
                 }
             } else {
-                notifier.reportError(type.toString() + " is not a RECORD; type INT assumed", fl.pos);
+                notifier.error(type.toString() + " is not a RECORD; type INT assumed", fl.pos);
                 ret = new type.Int();
             }
             return new TranslateResult(null, ret);
@@ -546,7 +552,7 @@ public class Semant {
             TranslateResult tr = transLValue(sl.lvalue, breakable, assignment);
             type.Type type = tr.type, ta = type.actual(), ret = null;
             if (!(ta instanceof type.Array)) {
-                notifier.reportError(type.toString() + " is not an ARRAY", sl.pos);
+                notifier.error(type.toString() + " is not an ARRAY", sl.pos);
                 ret = new type.Int();
             } else
                 ret = ((type.Array) ta).base;
