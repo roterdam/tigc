@@ -135,22 +135,6 @@ public class Semant {
         } while (change);
     }
 
-    private void calcFullFormals(ArrayList<FuncEntry> entries) {
-        for (FuncEntry fe: entries) {
-            fe.formals = new LinkedList<FuncEntry.Formal>();
-            type.Record p = fe.params;
-            while (p != null && !p.isEmpty()) {
-                fe.formals.add(new FuncEntry.Formal(p.field, p.type, Temp.newTemp()));
-                p = p.next;
-            }
-            for (Symbol f: fe.foreigns) {
-                VarEntry ve = (VarEntry) vt.get(f);
-                Temp t = Temp.newTemp(ve.place);
-                fe.formals.add(new FuncEntry.Formal(f, ve.type, t));
-            }
-        }
-    }
-
     private TranslateResult transExpr(absyn.Expr expr) {
         if (expr instanceof ArrayExpr)
             return transExpr((ArrayExpr) expr);
@@ -274,7 +258,7 @@ public class Semant {
 
         IntermediateCodeList codes = new IntermediateCodeList(),
                              codesParam = new IntermediateCodeList();
-        Iterator<FuncEntry.Formal> iter = func.isExtern ? null : func.formals.iterator();
+        Iterator<FuncEntry.Formal> iter = func.formals.iterator();
         ArrayList<Access> actuals = new ArrayList<Access>();
         while (p != null && !p.isEmpty() && q != null) {
             TranslateResult tq = transExpr(q.expr);
@@ -283,8 +267,8 @@ public class Semant {
             actuals.add(tq.place);
             if (!notifier.hasError())
                 codes.addAll(tq.codes);
-            if (iter != null && iter.hasNext() && !notifier.hasError())
-                codesParam.add(new ParamTAC(tq.place, new TempAccess(iter.next().place)));
+            if (!func.isExtern && !notifier.hasError())
+                codesParam.add(new MoveTAC(tq.place, new TempAccess(iter.next().place)));
 
             p = p.next;
             q = q.next;
@@ -321,13 +305,6 @@ public class Semant {
             } else {
                 codes.addAll(codesParam);
                 ret = new TempAccess(func.tResult);
-
-                Iterator<Symbol> foreignIter = func.foreigns.iterator();
-                while (iter.hasNext()) {
-                    FuncEntry.Formal formal = iter.next();
-                    codes.add(new RefParamTAC(new TempAccess(formal.place.ref), new TempAccess(formal.place)));
-                }
-
                 codes.add(new CallTAC(func.place));
             }
         }
@@ -807,7 +784,15 @@ public class Semant {
                     Temp tResult = null;
                     if (!(result.actual() instanceof type.Void))
                         tResult = Temp.newTemp();
-                    vt.put(fd.name, new FuncEntry(transTypeFields(fd.params), result, tResult, Label.newLabel(), false));
+                    
+                    type.Record pp = transTypeFields(fd.params);
+                    FuncEntry entry = new FuncEntry(pp, result, tResult, Label.newLabel(), false);
+                    entry.formals = new LinkedList<FuncEntry.Formal>();
+                    while (pp != null && !pp.isEmpty()) {
+                        entry.formals.add(new FuncEntry.Formal(pp.field, pp.type, Temp.newTemp()));
+                        pp = pp.next;
+                    }
+                    vt.put(fd.name, entry);
                 }
                 else
                     notifier.error(fd.name.toString() + " already defined in the same block", fd.pos);
@@ -820,8 +805,8 @@ public class Semant {
 
                 FuncEntry fe = (FuncEntry) vt.get(fd.name);
                 funcEntries.add(fe);
-                for (type.Record i = fe.params; i != null && !i.isEmpty(); i = i.next)
-                    vt.put(i.field, new VarEntry(i.type, Temp.newTemp()));
+                for (FuncEntry.Formal f: fe.formals)
+                    vt.put(f.name, new VarEntry(f.type, f.place));
 
                 invokingStack.push(fe);
                 breakStack.push(null);
@@ -832,36 +817,16 @@ public class Semant {
                 checkType(fe.result, te.type, fd.body.pos);
 
                 vt.endScope();
-            }
-            if (!notifier.hasError()) {
-                calcFullForeigns(funcEntries);
-                calcFullFormals(funcEntries);
-                for (p = expr; p != null && p.decl instanceof FuncDecl; p = p.next) {
 
-                    FuncDecl fd = (FuncDecl) p.decl;
-
-                    vt.beginScope(true);
-                    FuncEntry fe = (FuncEntry) vt.get(fd.name);
-                    for (FuncEntry.Formal f: fe.formals)
-                        vt.put(f.name, new VarEntry(f.type, f.place));
-
-                    invokingStack.push(null);
-                    breakStack.push(null);
-                    TranslateResult te = transExpr(fd.body);
-                    breakStack.pop();
-                    invokingStack.pop();
-
-                    if (!notifier.hasError()) {
-                        codes.add(fe.place);
-                        codes.addAll(te.codes);
-                        if (!(fe.result.actual() instanceof type.Void))
+                if (!notifier.hasError()) {
+                    codes.add(fe.place);
+                    codes.addAll(te.codes);
+                    if (!(fe.result.actual() instanceof type.Void))
                         codes.add(new MoveTAC(te.place, new TempAccess(fe.tResult)));
-                        codes.add(new ReturnTAC());
-                    }
-
-                    vt.endScope();
+                    codes.add(new ReturnTAC());
                 }
             }
+            calcFullForeigns(funcEntries);
 
             Label skip = Label.newLabel();
             codes.addFirst(new GotoTAC(skip));

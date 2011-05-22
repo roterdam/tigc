@@ -2,25 +2,15 @@ package intermediate;
 
 public class Temp {
     private int id;
-    public Temp ref;
 
-    private Temp(int id, Temp ref) {
+    private Temp(int id) {
         this.id = id;
-        this.ref = ref;
     }
 
     private static int count = 0;
     
-    public static Temp newTemp(Temp ref) {
-        return new Temp(count++, ref);
-    }
-
     public static Temp newTemp() {
-        return newTemp(null);
-    }
-
-    public boolean isRef() {
-        return ref != null;
+        return new Temp(count++);
     }
 
     public String toString() {
