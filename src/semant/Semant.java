@@ -3,9 +3,7 @@ package semant;
 import symbol.*;
 import notifier.Notifier;
 import absyn.*;
-import java.util.HashSet;
-import java.util.Stack;
-import java.util.Iterator;
+import java.util.*;
 import intermediate.*;
 
 public class Semant {
@@ -30,35 +28,35 @@ public class Semant {
         // function print(s : string)
         vt.put(sym("print"), new FuncEntry(
                     new type.Record(sym("s"), new type.String(), null),
-                    new type.Void(), null));
+                    new type.Void(), null, true));
 
         // function printi(i : int)
         vt.put(sym("printi"), new FuncEntry(
                     new type.Record(sym("i"), new type.Int(), null),
-                    new type.Void(), null));
+                    new type.Void(), null, true));
 
         // function flush()
         vt.put(sym("flush"), new FuncEntry(
-                    null, new type.Void(), null));
+                    null, new type.Void(), null, true));
 
         // function getchar() : string
         vt.put(sym("getchar"), new FuncEntry(
-                    null, new type.String(), null));
+                    null, new type.String(), null, true));
 
         // function ord(s: string) : int
         vt.put(sym("ord"), new FuncEntry(
                     new type.Record(sym("s"), new type.String(), null),
-                    new type.Int(), null));
+                    new type.Int(), null, true));
 
         // function chr(i: int) : string
         vt.put(sym("chr"), new FuncEntry(
                     new type.Record(sym("i"), new type.Int(), null),
-                    new type.String(), null));
+                    new type.String(), null, true));
 
         // function size(s: string) : int
         vt.put(sym("size"), new FuncEntry(
                     new type.Record(sym("s"), new type.String(), null),
-                    new type.Int(), null));
+                    new type.Int(), null, true));
 
         // function substring(s : string, first: int, n: int) : string
         vt.put(sym("substring"), new FuncEntry(
@@ -66,23 +64,23 @@ public class Semant {
                         new type.Record(sym("first"), new type.Int(),
                             new type.Record(sym("n"), new type.Int(), null)
                             )
-                        ), new type.String(), null));
+                        ), new type.String(), null, true));
         
         // function concat(s1: string, s2: string) : string
         vt.put(sym("concat"), new FuncEntry(
                     new type.Record(sym("s1"), new type.String(),
                         new type.Record(sym("s2"), new type.String(), null)
-                        ), new type.String(), null));
+                        ), new type.String(), null, true));
 
         // function not(i: int): int
         vt.put(sym("not"), new FuncEntry(
                     new type.Record(sym("i"), new type.Int(), null),
-                    new type.Int(), null));
+                    new type.Int(), null, true));
 
         // function exit(i: int)
         vt.put(sym("exit"), new FuncEntry(
                     new type.Record(sym("i"), new type.Int(), null),
-                    new type.Void(), null));
+                    new type.Void(), null, true));
     }
 
     public Semant(Notifier notifier) {
@@ -184,7 +182,8 @@ public class Semant {
                 Temp tsize = Temp.newTemp(), tres = Temp.newTemp();
                 tresa = new TempAccess(tres);
                 codes.add(new BinOpTAC(BinOpTAC.BinOp.MUL, size.place, ir.wordLength, new TempAccess(tsize)));
-                codes.add(new CallExternTAC("malloc", new TempAccess(tsize), tresa));
+                ir.funcTable.put(sym("malloc"));
+                codes.add(new CallExternTAC(sym("malloc"), new TempAccess(tsize), null, null, tresa));
 
                 Label l1 = Label.newLabel(), l2 = Label.newLabel();
                 Temp ti = Temp.newTemp();
@@ -239,19 +238,20 @@ public class Semant {
         type.Record p = func.params;
         ExprList q = expr.args;
 
-        IntermediateCodeList codes = new IntermediateCodeList();
-        Iterator<Temp> iter = func.formals.iterator();
+        IntermediateCodeList codes = new IntermediateCodeList(),
+                             codesParam = new IntermediateCodeList();
+        Iterator<Temp> iter = func.isExtern ? null : func.formals.iterator();
+        ArrayList<Access> actuals = new ArrayList<Access>();
         while (p != null && !p.isEmpty() && q != null) {
             TranslateResult tq = transExpr(q.expr);
             checkType(p.type, tq.type, q.expr.pos);
 
+            actuals.add(tq.place);
             if (!notifier.hasError())
                 codes.addAll(tq.codes);
-            if (iter.hasNext()) {
-                if (!notifier.hasError()) {
-                    Temp formal = iter.next();
-                    codes.add(new ParamTAC(tq.place, new TempAccess(formal)));
-                }
+            if (iter != null && iter.hasNext() && !notifier.hasError()) {
+                Temp formal = iter.next();
+                codesParam.add(new ParamTAC(tq.place, new TempAccess(formal)));
             }
 
             p = p.next;
@@ -260,18 +260,48 @@ public class Semant {
 
         TempAccess ret = null;
         if (!notifier.hasError()) {
-            Iterator<Symbol> foreignIter = func.foreigns.iterator();
-            while (iter.hasNext()) {
-                Temp formal = iter.next();
-                Temp actual = ((VarEntry) vt.get(foreignIter.next())).place;
-                codes.add(new RefParamTAC(new TempAccess(actual), new TempAccess(formal)));
-            }
+            if (func.isExtern) {
+                if (!(func.result instanceof type.Void))
+                    ret = new TempAccess(Temp.newTemp());
 
-            if (iter.hasNext()) {
-                ret = new TempAccess(Temp.newTemp());
-                codes.add(new RefParamTAC(ret, new TempAccess(iter.next())));
+                ir.funcTable.put(expr.func);
+                switch (actuals.size()) {
+                    case 0:
+                        codes.add(new CallExternTAC(expr.func, null, null, null, ret));
+                        break;
+
+                    case 1:
+                        codes.add(new CallExternTAC(expr.func, actuals.get(0), null, null, ret));
+                        break;
+
+                    case 2:
+                        codes.add(new CallExternTAC(expr.func, actuals.get(0), actuals.get(1), null, ret));
+                        break;
+
+                    case 3:
+                        codes.add(new CallExternTAC(expr.func, actuals.get(0), actuals.get(1), actuals.get(2), ret));
+                        break;
+
+                    default:
+                        notifier.error("Too many params in extern call", q.pos);
+                        break;
+                }
+            } else {
+                codes.addAll(codesParam);
+
+                Iterator<Symbol> foreignIter = func.foreigns.iterator();
+                while (iter.hasNext()) {
+                    Temp formal = iter.next();
+                    Temp actual = ((VarEntry) vt.get(foreignIter.next())).place;
+                    codes.add(new RefParamTAC(new TempAccess(actual), new TempAccess(formal)));
+                }
+
+                if (iter.hasNext()) {
+                    ret = new TempAccess(Temp.newTemp());
+                    codes.add(new RefParamTAC(ret, new TempAccess(iter.next())));
+                }
+                codes.add(new CallTAC(func.place));
             }
-            codes.add(new CallTAC(func.place));
         }
 
         if ((p != null && !p.isEmpty()) || q != null)
@@ -504,10 +534,44 @@ public class Semant {
                     || expr.op == OpExpr.Op.GT || expr.op == OpExpr.Op.GEQ) {
                 checkType(new type.String(), la, expr.left.pos);
                 checkType(new type.String(), ra, expr.right.pos);
+
+                if (!notifier.hasError()) {
+                    codes.addAll(lr.codes);
+                    codes.addAll(rr.codes);
+                    TempAccess t = new TempAccess(Temp.newTemp());
+                    codes.add(new CallExternTAC(sym("strcmp"), lr.place, rr.place, null, t));
+                    switch (expr.op) {
+                        case EQ:
+                            codes.add(new BinOpTAC(BinOpTAC.BinOp.EQ, t, new ConstAccess(0), place));
+                            break;
+
+                        case NEQ:
+                            codes.add(new BinOpTAC(BinOpTAC.BinOp.NEQ, t, new ConstAccess(0), place));
+                            break;
+
+                        case LT:
+                            codes.add(new BinOpTAC(BinOpTAC.BinOp.LT, t, new ConstAccess(0), place));
+                            break;
+
+                        case LEQ:
+                            codes.add(new BinOpTAC(BinOpTAC.BinOp.LEQ, t, new ConstAccess(0), place));
+                            break;
+
+                        case GT:
+                            codes.add(new BinOpTAC(BinOpTAC.BinOp.GT, t, new ConstAccess(0), place));
+                            break;
+
+                        case GEQ:
+                            codes.add(new BinOpTAC(BinOpTAC.BinOp.GEQ, t, new ConstAccess(0), place));
+                            break;
+                    }
+                }
+
             } else {
                 notifier.error("Invalid comparation between strings", expr.pos);
             }
         } else if ((expr.op == OpExpr.Op.EQ || expr.op == OpExpr.Op.NEQ) &&
+
                 (la instanceof type.Array || la instanceof type.Record
                  || ra instanceof type.Array || ra instanceof type.Record)) {
             if (!(ltype.fits(rtype) || rtype.fits(ltype)))
@@ -543,7 +607,8 @@ public class Semant {
             if (!notifier.hasError()) {
                 TempAccess tsize = new TempAccess(Temp.newTemp());
                 codes.add(new BinOpTAC(BinOpTAC.BinOp.MUL, new ConstAccess(p.length()), ir.wordLength, tsize));
-                codes.add(new CallExternTAC("malloc", tsize, place));
+                ir.funcTable.put(sym("malloc"));
+                codes.add(new CallExternTAC(sym("malloc"), tsize, null, null, place));
             }
 
             int offset = 0;
@@ -711,7 +776,7 @@ public class Semant {
                         notifier.error(fd.type.toString() + " undefined; assumed INT", fd.pos);
                         result = new type.Int();
                     }
-                    vt.put(fd.name, new FuncEntry(transTypeFields(fd.params), result, Label.newLabel()));
+                    vt.put(fd.name, new FuncEntry(transTypeFields(fd.params), result, Label.newLabel(), false));
                 }
                 else
                     notifier.error(fd.name.toString() + " already defined in the same block", fd.pos);

@@ -15,7 +15,7 @@ public class StringTable {
         if (table.containsKey(s))
             return table.get(s);
         else {
-            UnknownConstAccess a = new UnknownConstAccess("S" + new Integer(count).toString());
+            UnknownConstAccess a = new UnknownConstAccess("STRING" + new Integer(count).toString());
             ++count;
             table.put(s, a);
             return a;

@@ -1,12 +1,13 @@
 package intermediate;
 
 public class CallExternTAC extends ThreeAddressCode {
-    public String place;
-    public Access param1, param2;
+    public symbol.Symbol place;
+    public Access param1, param2, param3;
 
-    public CallExternTAC(String place, Access param1, AssignableAccess dst) {
+    public CallExternTAC(symbol.Symbol place, Access param1, Access param2, Access param3, AssignableAccess dst) {
         this.param1 = param1;
-        this.param2 = null;
+        this.param2 = param2;
+        this.param3 = param3;
         this.op1 = null;
         this.op2 = null;
         this.dst = (Access)dst;
