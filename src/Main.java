@@ -5,6 +5,7 @@ import absyn.*;
 import symbol.*;
 import semant.Semant;
 import java.io.*;
+import intermediate.*;
 
 public class Main {
     public static void main(String[] args) {
@@ -27,7 +28,13 @@ public class Main {
             java_cup.runtime.Symbol absyn = parser.parse();
             if (!notifier.hasError()) {
                 Semant semant = new Semant(notifier);
-                semant.translate((Expr) absyn.value);
+                IR ir = semant.translate((Expr) absyn.value);
+
+                if (!notifier.hasError()) {
+                    for (IntermediateCode c: ir.codes) {
+                        notifier.message(c.toString());
+                    }
+                }
             }
             
             if (notifier.hasError()) {

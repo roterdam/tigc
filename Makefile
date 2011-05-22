@@ -144,7 +144,7 @@ bin/absyn/Printer.class: absyn src/absyn/Printer.java
 	$(JC) src/absyn/Printer.java
 
 
-intermediate: bin/intermediate/ThreeAddressCode.class bin/intermediate/Label.class bin/intermediate/Access.class bin/intermediate/AssignableAccess.class bin/intermediate/SimpleAccess.class bin/intermediate/ConstAccess.class bin/intermediate/TempAccess.class bin/intermediate/MemAccess.class bin/intermediate/Temp.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/ParamTAC.class bin/intermediate/RefParamTAC.class bin/intermediate/CallTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/intermediate/IntermediateCodeList.class
+intermediate: bin/intermediate/ThreeAddressCode.class bin/intermediate/Label.class bin/intermediate/Access.class bin/intermediate/AssignableAccess.class bin/intermediate/SimpleAccess.class bin/intermediate/ConstAccess.class bin/intermediate/UnknownConstAccess.class bin/intermediate/TempAccess.class bin/intermediate/MemAccess.class bin/intermediate/Temp.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/ParamTAC.class bin/intermediate/RefParamTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/intermediate/IntermediateCodeList.class bin/intermediate/IR.class
 
 bin/intermediate/ThreeAddressCode.class: bin/intermediate/Access.class src/intermediate/ThreeAddressCode.java
 	$(JC) src/intermediate/ThreeAddressCode.java
@@ -166,6 +166,9 @@ bin/intermediate/Temp.class: src/intermediate/Temp.java
 
 bin/intermediate/ConstAccess.class: bin/intermediate/SimpleAccess.class src/intermediate/ConstAccess.java
 	$(JC) src/intermediate/ConstAccess.java
+
+bin/intermediate/UnknownConstAccess.class: bin/intermediate/ConstAccess.class src/intermediate/UnknownConstAccess.java
+	$(JC) src/intermediate/UnknownConstAccess.java
 
 bin/intermediate/TempAccess.class: bin/intermediate/AssignableAccess.class bin/intermediate/Temp.class bin/intermediate/SimpleAccess.class src/intermediate/TempAccess.java
 	$(JC) src/intermediate/TempAccess.java
@@ -194,6 +197,9 @@ bin/intermediate/RefParamTAC.class: bin/intermediate/ThreeAddressCode.class src/
 bin/intermediate/CallTAC.class: bin/intermediate/Label.class bin/intermediate/ThreeAddressCode.class src/intermediate/CallTAC.java
 	$(JC) src/intermediate/CallTAC.java
 
+bin/intermediate/CallExternTAC.class: bin/intermediate/ThreeAddressCode.class src/intermediate/CallExternTAC.java
+	$(JC) src/intermediate/CallExternTAC.java
+
 bin/intermediate/ReturnTAC.class: bin/intermediate/ThreeAddressCode.class src/intermediate/ReturnTAC.java
 	$(JC) src/intermediate/ReturnTAC.java
 
@@ -203,8 +209,18 @@ bin/intermediate/GotoTAC.class: bin/intermediate/ThreeAddressCode.class src/inte
 bin/intermediate/BranchTAC.class: bin/intermediate/ThreeAddressCode.class src/intermediate/BranchTAC.java
 	$(JC) src/intermediate/BranchTAC.java
 
-bin/intermediate/IntermediateCodeList.class: bin/intermediate/Label.class bin/intermediate/ThreeAddressCode.class src/intermediate/IntermediateCodeList.java
+bin/intermediate/IntermediateCode.class: bin/intermediate/ThreeAddressCode.class src/intermediate/IntermediateCode.java
+	$(JC) src/intermediate/IntermediateCode.java
+
+bin/intermediate/IntermediateCodeList.class: bin/intermediate/Label.class bin/intermediate/IntermediateCode.class src/intermediate/IntermediateCodeList.java
 	$(JC) src/intermediate/IntermediateCodeList.java
+
+bin/intermediate/IR.class: bin/intermediate/UnknownConstAccess.class bin/intermediate/IntermediateCodeList.class bin/arch/StringTable.class src/intermediate/IR.java
+	$(JC) src/intermediate/IR.java
+
+
+bin/arch/StringTable.class: bin/intermediate/UnknownConstAccess.class src/arch/StringTable.java
+	$(JC) src/arch/StringTable.java
 
 
 bin/parser/sym.class: src/parser/sym.java
@@ -229,7 +245,7 @@ src/parser/sym.java: doc/parser.cup
 	cd src/parser; java -jar ../../lib/java-cup-11a.jar -parser Parser ../../doc/parser.cup
 
 
-bin/semant/Semant.class: src/semant/Semant.java bin/type/Type.class bin/type/Int.class bin/type/String.class bin/type/Record.class bin/type/EmptyRecord.class bin/type/Array.class bin/type/Name.class bin/type/Nil.class bin/type/Void.class bin/symbol/Table.class bin/notifier/Notifier.class bin/semant/Entry.class bin/semant/TranslateResult.class absyn bin/intermediate/IntermediateCodeList.class
+bin/semant/Semant.class: src/semant/Semant.java bin/type/Type.class bin/type/Int.class bin/type/String.class bin/type/Record.class bin/type/EmptyRecord.class bin/type/Array.class bin/type/Name.class bin/type/Nil.class bin/type/Void.class bin/symbol/Table.class bin/notifier/Notifier.class bin/semant/Entry.class bin/semant/TranslateResult.class absyn intermediate
 	$(JC) src/semant/Semant.java
 
 bin/semant/TranslateResult.class: src/semant/TranslateResult.java bin/intermediate/IntermediateCodeList.class

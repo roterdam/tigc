@@ -1,19 +1,23 @@
 package semant;
 
+import intermediate.*;
+
 abstract class Entry {
 }
 
 class VarEntry extends Entry {
     type.Type type;
     boolean assignable;
+    Temp place;
 
-    public VarEntry(type.Type type) {
-        this(type, true);
+    public VarEntry(type.Type type, Temp place) {
+        this(type, true, place);
     }
 
-    public VarEntry(type.Type type, boolean assignable) {
+    public VarEntry(type.Type type, boolean assignable, Temp place) {
         this.type = type;
         this.assignable = assignable;
+        this.place = place;
     }
 }
 
@@ -22,18 +26,21 @@ class FuncEntry extends Entry {
     java.util.HashSet<symbol.Symbol> foreigns;
     java.util.HashSet<symbol.Symbol> invokings;
     type.Type result;
+    Label place = null;
+    java.util.LinkedList<Temp> formals = new java.util.LinkedList<Temp>();
 
-    public FuncEntry(type.Record params, type.Type result,
+    public FuncEntry(type.Record params, type.Type result, Label place,
             java.util.HashSet<symbol.Symbol> foreigns, java.util.HashSet<symbol.Symbol> invokings) {
         this.params = params;
         this.result = result;
         this.foreigns = foreigns;
         this.invokings = invokings;
+        this.place = place;
     }
 
-    public FuncEntry(type.Record params, type.Type result) {
-        this(params, result, new java.util.HashSet<symbol.Symbol>(), new java.util.HashSet<symbol.Symbol>());
+    public FuncEntry(type.Record params, type.Type result, Label place) {
+        this(params, result, place,
+                new java.util.HashSet<symbol.Symbol>(), new java.util.HashSet<symbol.Symbol>());
     }
 }
-
 

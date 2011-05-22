@@ -33,5 +33,21 @@ public class Record extends Type {
         else
             return null;
     }
+
+    public int fieldIndex(Symbol fieldName) {
+        if (field == fieldName)
+            return 0;
+        else if (next != null)
+            return 1 + next.fieldIndex(fieldName);
+        else
+            return -1;
+    }
+
+    public int length() {
+        if (next == null)
+            return 1;
+        else
+            return 1 + next.length();
+    }
 }
 

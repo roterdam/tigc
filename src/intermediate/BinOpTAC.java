@@ -2,7 +2,7 @@ package intermediate;
 
 public class BinOpTAC extends OpTAC {
     public enum BinOp {
-        ADD, SUB, MUL, DIV, AND, OR,
+        ADD, SUB, MUL, DIV,
             EQ, NEQ, GT, GEQ, LT, LEQ
     }
 
@@ -32,14 +32,6 @@ public class BinOpTAC extends OpTAC {
 
             case DIV:
                 s = "/";
-                break;
-
-            case AND:
-                s = "&";
-                break;
-
-            case OR:
-                s = "|";
                 break;
 
             case EQ:
