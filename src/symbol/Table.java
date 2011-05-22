@@ -36,6 +36,18 @@ class SingleTable<T> {
         return parent.isForeign(symbol, state);
     }
 
+    public HashSet<Symbol> getLocals() {
+        HashSet<Symbol> locals = new HashSet<Symbol>();
+        for (Symbol s: table.keySet())
+            locals.add(s);
+        if (mark || parent == null)
+            return locals;
+        else {
+            locals.addAll(parent.getLocals());
+            return locals;
+        }
+    }
+
     public SingleTable<T> getParent() {
         return parent;
     }
@@ -57,6 +69,10 @@ public class Table<T> {
 
     public boolean isForeign(Symbol symbol) {
         return head.isForeign(symbol, 0);
+    }
+
+    public HashSet<Symbol> getLocals() {
+        return head.getLocals();
     }
 
     public void beginScope() {

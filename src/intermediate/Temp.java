@@ -2,7 +2,7 @@ package intermediate;
 
 public class Temp {
     private int id;
-    private Temp ref;
+    public Temp ref;
 
     private Temp(int id, Temp ref) {
         this.id = id;
