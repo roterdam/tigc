@@ -144,7 +144,7 @@ bin/absyn/Printer.class: absyn src/absyn/Printer.java
 	$(JC) src/absyn/Printer.java
 
 
-intermediate: bin/intermediate/ThreeAddressCode.class bin/intermediate/Label.class bin/intermediate/Access.class bin/intermediate/AssignableAccess.class bin/intermediate/SimpleAccess.class bin/intermediate/ConstAccess.class bin/intermediate/UnknownConstAccess.class bin/intermediate/TempAccess.class bin/intermediate/MemAccess.class bin/intermediate/Temp.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/ParamTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/intermediate/IntermediateCodeList.class bin/intermediate/IR.class
+intermediate: bin/intermediate/ThreeAddressCode.class bin/intermediate/Label.class bin/intermediate/Access.class bin/intermediate/AssignableAccess.class bin/intermediate/SimpleAccess.class bin/intermediate/ConstAccess.class bin/intermediate/UnknownConstAccess.class bin/intermediate/TempAccess.class bin/intermediate/MemAccess.class bin/intermediate/Temp.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/intermediate/IntermediateCodeList.class bin/intermediate/IR.class
 
 bin/intermediate/ThreeAddressCode.class: bin/intermediate/Access.class src/intermediate/ThreeAddressCode.java
 	$(JC) src/intermediate/ThreeAddressCode.java
@@ -188,8 +188,6 @@ bin/intermediate/BinOpTAC.class: bin/intermediate/OpTAC.class src/intermediate/B
 bin/intermediate/UniOpTAC.class: bin/intermediate/OpTAC.class src/intermediate/UniOpTAC.java
 	$(JC) src/intermediate/UniOpTAC.java
 
-bin/intermediate/ParamTAC.class: bin/intermediate/ThreeAddressCode.class src/intermediate/ParamTAC.java
-	$(JC) src/intermediate/ParamTAC.java
 
 bin/intermediate/CallTAC.class: bin/intermediate/Label.class bin/intermediate/ThreeAddressCode.class src/intermediate/CallTAC.java
 	$(JC) src/intermediate/CallTAC.java
@@ -251,7 +249,7 @@ bin/semant/Semant.class: src/semant/Semant.java bin/type/Type.class bin/type/Int
 bin/semant/TranslateResult.class: src/semant/TranslateResult.java bin/intermediate/IntermediateCodeList.class
 	$(JC) src/semant/TranslateResult.java
 
-bin/semant/Entry.class: src/semant/Entry.java
+bin/semant/Entry.class: bin/intermediate/Label.class bin/intermediate/Temp.class src/semant/Entry.java
 	$(JC) src/semant/Entry.java
 
 bin/type/Type.class: src/type/Type.java
