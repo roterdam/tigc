@@ -1,5 +1,7 @@
 package intermediate;
 
+import frame.Frame;
+
 public class BranchTAC extends ThreeAddressCode {
     public enum BranchType {
         EQ, NEQ, LT, LEQ, GT, GEQ
@@ -8,7 +10,8 @@ public class BranchTAC extends ThreeAddressCode {
     public BranchType type;
     public Label place;
 
-    public BranchTAC(BranchType type, Access op1, Access op2, Label place) {
+    public BranchTAC(Frame frame, BranchType type, Access op1, Access op2, Label place) {
+        super(frame);
         this.type = type;
         this.op1 = op1;
         this.op2 = op2;

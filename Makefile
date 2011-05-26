@@ -9,7 +9,7 @@ JC2 = javac -d bin/ -cp bin/
 
 all: bin/Main.class
 
-debug: all bin/tester/SymbolTableTester.class bin/tester/ParserTester.class bin/tester/SemantTester.class bin/tester/Mid.class
+debug: all bin/tester/SymbolTableTester.class bin/tester/ParserTester.class bin/tester/SemantTester.class bin/tester/Mid.class bin/tester/SimpleLinkedListTester.class
 
 bin/Main.class: src/Main.java bin/parser/Parser.class bin/scanner/Scanner.class absyn bin/absyn/Printer.class bin/semant/Semant.class bin/notifier/Notifier.class intermediate
 	$(JC) src/Main.java
@@ -25,6 +25,9 @@ bin/tester/SemantTester.class: src/tester/SemantTester.java bin/parser/Parser.cl
 
 bin/tester/Mid.class: src/tester/Mid.java bin/parser/Parser.class absyn bin/semant/Semant.class
 	$(JC) src/tester/Mid.java
+
+bin/tester/SimpleLinkedListTester.class: bin/util/SimpleLinkedList.class src/tester/SimpleLinkedListTester.java
+	$(JC) src/tester/SimpleLinkedListTester.java
 
 
 bin/symbol/Symbol.class: src/symbol/Symbol.java
@@ -173,41 +176,40 @@ bin/intermediate/UnknownConstAccess.class: bin/intermediate/ConstAccess.class sr
 bin/intermediate/MemAccess.class: bin/intermediate/AssignableAccess.class src/intermediate/MemAccess.java
 	$(JC) src/intermediate/MemAccess.java
 
-bin/intermediate/MoveTAC.class: bin/intermediate/ThreeAddressCode.class src/intermediate/MoveTAC.java
+bin/intermediate/MoveTAC.class: bin/frame/Frame.class bin/intermediate/ThreeAddressCode.class src/intermediate/MoveTAC.java
 	$(JC) src/intermediate/MoveTAC.java
 
-bin/intermediate/OpTAC.class: bin/intermediate/ThreeAddressCode.class src/intermediate/OpTAC.java
+bin/intermediate/OpTAC.class: bin/frame/Frame.class bin/intermediate/ThreeAddressCode.class src/intermediate/OpTAC.java
 	$(JC) src/intermediate/OpTAC.java
 
-bin/intermediate/BinOpTAC.class: bin/intermediate/OpTAC.class src/intermediate/BinOpTAC.java
+bin/intermediate/BinOpTAC.class: bin/frame/Frame.class bin/intermediate/OpTAC.class src/intermediate/BinOpTAC.java
 	$(JC) src/intermediate/BinOpTAC.java
 
-bin/intermediate/UniOpTAC.class: bin/intermediate/OpTAC.class src/intermediate/UniOpTAC.java
+bin/intermediate/UniOpTAC.class: bin/frame/Frame.class bin/intermediate/OpTAC.class src/intermediate/UniOpTAC.java
 	$(JC) src/intermediate/UniOpTAC.java
 
-
-bin/intermediate/CallTAC.class: bin/intermediate/Label.class bin/intermediate/ThreeAddressCode.class src/intermediate/CallTAC.java
+bin/intermediate/CallTAC.class: bin/frame/Frame.class bin/intermediate/Label.class bin/intermediate/ThreeAddressCode.class src/intermediate/CallTAC.java
 	$(JC) src/intermediate/CallTAC.java
 
-bin/intermediate/CallExternTAC.class: bin/intermediate/ThreeAddressCode.class src/intermediate/CallExternTAC.java
+bin/intermediate/CallExternTAC.class: bin/frame/Frame.class bin/intermediate/ThreeAddressCode.class src/intermediate/CallExternTAC.java
 	$(JC) src/intermediate/CallExternTAC.java
 
-bin/intermediate/ReturnTAC.class: bin/intermediate/ThreeAddressCode.class src/intermediate/ReturnTAC.java
+bin/intermediate/ReturnTAC.class: bin/frame/Frame.class bin/intermediate/ThreeAddressCode.class src/intermediate/ReturnTAC.java
 	$(JC) src/intermediate/ReturnTAC.java
 
-bin/intermediate/GotoTAC.class: bin/intermediate/ThreeAddressCode.class src/intermediate/GotoTAC.java
+bin/intermediate/GotoTAC.class: bin/frame/Frame.class bin/intermediate/ThreeAddressCode.class src/intermediate/GotoTAC.java
 	$(JC) src/intermediate/GotoTAC.java
 
-bin/intermediate/BranchTAC.class: bin/intermediate/ThreeAddressCode.class src/intermediate/BranchTAC.java
+bin/intermediate/BranchTAC.class: bin/frame/Frame.class bin/intermediate/ThreeAddressCode.class src/intermediate/BranchTAC.java
 	$(JC) src/intermediate/BranchTAC.java
 
 bin/intermediate/IntermediateCode.class: bin/intermediate/ThreeAddressCode.class src/intermediate/IntermediateCode.java
 	$(JC) src/intermediate/IntermediateCode.java
 
-bin/intermediate/IntermediateCodeList.class: bin/intermediate/Label.class bin/intermediate/IntermediateCode.class src/intermediate/IntermediateCodeList.java
+bin/intermediate/IntermediateCodeList.class: bin/intermediate/Label.class bin/intermediate/IntermediateCode.class bin/util/SimpleLinkedList.class src/intermediate/IntermediateCodeList.java
 	$(JC) src/intermediate/IntermediateCodeList.java
 
-bin/intermediate/IR.class: bin/intermediate/UnknownConstAccess.class bin/intermediate/IntermediateCodeList.class bin/arch/StringTable.class bin/arch/ExternFunctionTable.class src/intermediate/IR.java
+bin/intermediate/IR.class: bin/intermediate/UnknownConstAccess.class bin/intermediate/IntermediateCodeList.class bin/arch/StringTable.class bin/arch/ExternFunctionTable.class bin/frame/Frame.class src/intermediate/IR.java
 	$(JC) src/intermediate/IR.java
 
 
@@ -280,7 +282,9 @@ bin/type/Void.class: src/type/Void.java bin/type/Type.class
 bin/type/Name.class: src/type/Name.java bin/type/Type.class bin/symbol/Symbol.class
 	$(JC) src/type/Name.java
 
+bin/util/SimpleLinkedList.class: src/util/SimpleLinkedList.java
+	$(JC) src/util/SimpleLinkedList.java
 
 clean:
-	rm -fR src/scanner/Scanner.java src/scanner/Scanner.java~ src/parser/Parser.java src/parser/sym.java bin/Main.class bin/parser bin/scanner bin/absyn bin/symbol bin/tester bin/type bin/semant bin/notifier bin/intermediate bin/arch bin/frame
+	rm -fR src/scanner/Scanner.java src/scanner/Scanner.java~ src/parser/Parser.java src/parser/sym.java bin/Main.class bin/parser bin/scanner bin/absyn bin/symbol bin/tester bin/type bin/semant bin/notifier bin/intermediate bin/arch bin/frame bin/util
 

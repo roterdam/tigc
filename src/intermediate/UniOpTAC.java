@@ -1,5 +1,7 @@
 package intermediate;
 
+import frame.Frame;
+
 public class UniOpTAC extends OpTAC {
     public enum UniOp {
         NOT, NEG
@@ -7,7 +9,8 @@ public class UniOpTAC extends OpTAC {
 
     public UniOp op;
     
-    public UniOpTAC(UniOp op, Access op1, AssignableAccess dst) {
+    public UniOpTAC(Frame frame, UniOp op, Access op1, AssignableAccess dst) {
+        super(frame);
         this.op = op;
         this.op1 = op1;
         this.op2 = null;

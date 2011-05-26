@@ -5,6 +5,7 @@ import notifier.Notifier;
 import absyn.*;
 import java.util.*;
 import intermediate.*;
+import frame.*;
 
 public class Semant {
     private Table<Entry> vt;
@@ -13,6 +14,7 @@ public class Semant {
 
     private Stack<FuncEntry> funcStack;
     private Stack<Label> breakStack;
+    private Stack<Frame> currentFrame;
     private IR ir;
 
     private Symbol sym(String s) {
@@ -88,6 +90,7 @@ public class Semant {
 
         funcStack = new Stack<FuncEntry>();
         breakStack = new Stack<Label>();
+        currentFrame = new Stack<Frame>();
         tt = new Table<type.Type>();
         vt = new Table<Entry>();
         initTypes();
@@ -95,10 +98,14 @@ public class Semant {
     }
 
     public IR translate(absyn.Expr expr) {
-        ir = new IR();
+        Frame globalFrame = new Frame(Label.newLabel("main"));
+        ir = new IR(globalFrame);
+        currentFrame.push(globalFrame);
         breakStack.push(null);
         IntermediateCodeList codes = transExpr(expr).codes;
+        codes.add(new CallExternTAC(currentFrame.peek(), sym("exit"), new ConstAccess(0), null, null, null));
         breakStack.pop();
+        currentFrame.pop();
         ir.codes = codes;
         return ir;
     }
@@ -110,8 +117,8 @@ public class Semant {
 
     private SimpleAccess convertToSimpleAccess(Access access, IntermediateCodeList codes) {
         if (access instanceof MemAccess) {
-            Temp t = Temp.newTemp();
-            codes.add(new MoveTAC(access, t));
+            Temp t = Temp.newTemp(currentFrame.peek());
+            codes.add(new MoveTAC(currentFrame.peek(), access, t));
             return t;
         } else
             return (SimpleAccess)access;
@@ -177,20 +184,20 @@ public class Semant {
             IntermediateCodeList codes = new IntermediateCodeList();
             codes.addAll(size.codes);
             codes.addAll(init.codes);
-            Temp tres = Temp.newTemp();
+            Temp tres = Temp.newTemp(currentFrame.peek());
             if (!notifier.hasError()) {
-                Temp tsize = Temp.newTemp();
-                codes.add(new BinOpTAC(BinOpTAC.BinOp.MUL, size.place, ir.wordLength, tsize));
+                Temp tsize = Temp.newTemp(currentFrame.peek());
+                codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.MUL, size.place, ir.wordLength, tsize));
                 ir.funcTable.put(sym("malloc"));
-                codes.add(new CallExternTAC(sym("malloc"), tsize, null, null, tres));
+                codes.add(new CallExternTAC(currentFrame.peek(), sym("malloc"), tsize, null, null, tres));
 
                 Label l1 = Label.newLabel(), l2 = Label.newLabel();
-                Temp ti = Temp.newTemp();
-                codes.add(new MoveTAC(new ConstAccess(0), ti));
-                codes.add(l1, new BranchTAC(BranchTAC.BranchType.GEQ, ti, tsize, l2));
-                codes.add(new MoveTAC(init.place, new MemAccess(tres, ti)));
-                codes.add(new BinOpTAC(BinOpTAC.BinOp.ADD, ti, ir.wordLength, ti));
-                codes.add(new GotoTAC(l1));
+                Temp ti = Temp.newTemp(currentFrame.peek());
+                codes.add(new MoveTAC(currentFrame.peek(), new ConstAccess(0), ti));
+                codes.add(l1, new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.GEQ, ti, tsize, l2));
+                codes.add(new MoveTAC(currentFrame.peek(), init.place, new MemAccess(tres, ti)));
+                codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.ADD, ti, ir.wordLength, ti));
+                codes.add(new GotoTAC(currentFrame.peek(), l1));
                 codes.add(l2);
             }
 
@@ -207,7 +214,7 @@ public class Semant {
         if (!notifier.hasError()) {
             codes.addAll(l.codes);
             codes.addAll(r.codes);
-            codes.add(new MoveTAC(r.place, (AssignableAccess) l.place));
+            codes.add(new MoveTAC(currentFrame.peek(), r.place, (AssignableAccess) l.place));
         }
         return new TranslateResult(codes, new type.Void());
     }
@@ -216,7 +223,7 @@ public class Semant {
         if (breakStack.peek() == null)
             notifier.error("Invalid break", expr.pos);
         IntermediateCodeList codes = new IntermediateCodeList();
-        codes.add(new GotoTAC(breakStack.peek()));
+        codes.add(new GotoTAC(currentFrame.peek(), breakStack.peek()));
         return new TranslateResult(codes, new type.Void());
     }
 
@@ -238,7 +245,7 @@ public class Semant {
 
         IntermediateCodeList codes = new IntermediateCodeList(),
                              codesParam = new IntermediateCodeList();
-        Iterator<Temp> iter = func.frame.params.iterator();
+        Iterator<Temp> iter = func.isExtern ? null : func.frame.params.iterator();
         ArrayList<Access> actuals = new ArrayList<Access>();
         while (p != null && !p.isEmpty() && q != null) {
             TranslateResult tq = transExpr(q.expr);
@@ -248,7 +255,7 @@ public class Semant {
             if (!notifier.hasError())
                 codes.addAll(tq.codes);
             if (!func.isExtern && !notifier.hasError())
-                codesParam.add(new MoveTAC(tq.place, iter.next()));
+                codesParam.add(new MoveTAC(currentFrame.peek(), tq.place, iter.next()));
 
             p = p.next;
             q = q.next;
@@ -258,24 +265,24 @@ public class Semant {
         if (!notifier.hasError()) {
             if (func.isExtern) {
                 if (!(func.result.actual() instanceof type.Void))
-                    ret = Temp.newTemp();
+                    ret = Temp.newTemp(currentFrame.peek());
 
                 ir.funcTable.put(expr.func);
                 switch (actuals.size()) {
                     case 0:
-                        codes.add(new CallExternTAC(expr.func, null, null, null, ret));
+                        codes.add(new CallExternTAC(currentFrame.peek(), expr.func, null, null, null, ret));
                         break;
 
                     case 1:
-                        codes.add(new CallExternTAC(expr.func, actuals.get(0), null, null, ret));
+                        codes.add(new CallExternTAC(currentFrame.peek(), expr.func, actuals.get(0), null, null, ret));
                         break;
 
                     case 2:
-                        codes.add(new CallExternTAC(expr.func, actuals.get(0), actuals.get(1), null, ret));
+                        codes.add(new CallExternTAC(currentFrame.peek(), expr.func, actuals.get(0), actuals.get(1), null, ret));
                         break;
 
                     case 3:
-                        codes.add(new CallExternTAC(expr.func, actuals.get(0), actuals.get(1), actuals.get(2), ret));
+                        codes.add(new CallExternTAC(currentFrame.peek(), expr.func, actuals.get(0), actuals.get(1), actuals.get(2), ret));
                         break;
 
                     default:
@@ -286,7 +293,7 @@ public class Semant {
                 codes.addAll(codesParam);
                 if (func.frame.returnValue != null)
                     ret = func.frame.returnValue;
-                codes.add(new CallTAC(func.place));
+                codes.add(new CallTAC(currentFrame.peek(), func.frame.place));
             }
         }
 
@@ -306,7 +313,7 @@ public class Semant {
         checkType(new type.Int(), er.type, expr.end.pos);
 
         Label endLoop = Label.newLabel();
-        Temp inductionVar = Temp.newTemp();
+        Temp inductionVar = Temp.newTemp(currentFrame.peek());
 
         vt.beginScope();
         vt.put(expr.var, new VarEntry(new type.Int(), false, inductionVar));
@@ -320,12 +327,12 @@ public class Semant {
         if (!notifier.hasError()) {
             codes.addAll(br.codes);
             codes.addAll(er.codes);
-            codes.add(new MoveTAC(br.place, inductionVar));
+            codes.add(new MoveTAC(currentFrame.peek(), br.place, inductionVar));
             Label beginLoop = Label.newLabel();
             codes.add(beginLoop);
-            codes.add(new BranchTAC(BranchTAC.BranchType.GT, inductionVar, er.place, endLoop));
+            codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.GT, inductionVar, er.place, endLoop));
             codes.addAll(result.codes);
-            codes.add(new GotoTAC(beginLoop));
+            codes.add(new GotoTAC(currentFrame.peek(), beginLoop));
             codes.add(endLoop);
         }
 
@@ -344,20 +351,20 @@ public class Semant {
             Label elseIf = Label.newLabel(), endIf = Label.newLabel();
             Temp place = null;
             if (!(thenr.type.actual() instanceof type.Void))
-                place = Temp.newTemp();
+                place = Temp.newTemp(currentFrame.peek());
             if (!notifier.hasError()) {
                 codes.addAll(cr.codes);
-                codes.add(new BranchTAC(BranchTAC.BranchType.EQ, cr.place, new ConstAccess(0), elseIf));
+                codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.EQ, cr.place, new ConstAccess(0), elseIf));
 
                 codes.addAll(thenr.codes);
                 if (place != null)
-                    codes.add(new MoveTAC(thenr.place, place));
-                codes.add(new GotoTAC(endIf));
+                    codes.add(new MoveTAC(currentFrame.peek(), thenr.place, place));
+                codes.add(new GotoTAC(currentFrame.peek(), endIf));
 
                 codes.add(elseIf);
                 codes.addAll(elser.codes);
                 if (place != null)
-                    codes.add(new MoveTAC(elser.place, place));
+                    codes.add(new MoveTAC(currentFrame.peek(), elser.place, place));
 
                 codes.add(endIf);
             }
@@ -372,7 +379,7 @@ public class Semant {
             Label endIf = Label.newLabel();
             if (!notifier.hasError()) {
                 codes.addAll(cr.codes);
-                codes.add(new BranchTAC(BranchTAC.BranchType.EQ, cr.place, new ConstAccess(0), endIf));
+                codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.EQ, cr.place, new ConstAccess(0), endIf));
                 codes.addAll(thenr.codes);
                 codes.add(endIf);
             }
@@ -410,10 +417,10 @@ public class Semant {
         checkType(new type.Int(), te.type, expr.value.pos);
 
         IntermediateCodeList codes = new IntermediateCodeList();
-        Temp place = Temp.newTemp();
+        Temp place = Temp.newTemp(currentFrame.peek());
         if (!notifier.hasError()) {
             codes.addAll(te.codes);
-            codes.add(new UniOpTAC(UniOpTAC.UniOp.NEG, te.place, place));
+            codes.add(new UniOpTAC(currentFrame.peek(), UniOpTAC.UniOp.NEG, te.place, place));
         }
 
         return new TranslateResult(codes, new type.Int(), place);
@@ -474,7 +481,7 @@ public class Semant {
 
 
         IntermediateCodeList codes = new IntermediateCodeList();
-        Temp place = Temp.newTemp();
+        Temp place = Temp.newTemp(currentFrame.peek());
 
         if (la instanceof type.Int || ra instanceof type.Int) {
             checkType(new type.Int(), la, expr.left.pos);
@@ -486,12 +493,12 @@ public class Semant {
                           endLabel = Label.newLabel();
 
                     codes.addAll(lr.codes);
-                    codes.add(new BranchTAC(BranchTAC.BranchType.EQ, lr.place, new ConstAccess(0), falseLabel));
+                    codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.EQ, lr.place, new ConstAccess(0), falseLabel));
                     codes.addAll(rr.codes);
-                    codes.add(new BranchTAC(BranchTAC.BranchType.EQ, rr.place, new ConstAccess(0), falseLabel));
-                    codes.add(new MoveTAC(new ConstAccess(1), place));
-                    codes.add(new GotoTAC(endLabel));
-                    codes.add(falseLabel, new MoveTAC(new ConstAccess(0), place));
+                    codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.EQ, rr.place, new ConstAccess(0), falseLabel));
+                    codes.add(new MoveTAC(currentFrame.peek(), new ConstAccess(1), place));
+                    codes.add(new GotoTAC(currentFrame.peek(), endLabel));
+                    codes.add(falseLabel, new MoveTAC(currentFrame.peek(), new ConstAccess(0), place));
                     codes.add(endLabel);
 
                 } else if (expr.op == OpExpr.Op.OR) {
@@ -499,18 +506,18 @@ public class Semant {
                           endLabel = Label.newLabel();
 
                     codes.addAll(lr.codes);
-                    codes.add(new BranchTAC(BranchTAC.BranchType.NEQ, lr.place, new ConstAccess(0), trueLabel));
+                    codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.NEQ, lr.place, new ConstAccess(0), trueLabel));
                     codes.addAll(rr.codes);
-                    codes.add(new BranchTAC(BranchTAC.BranchType.NEQ, rr.place, new ConstAccess(0), trueLabel));
-                    codes.add(new MoveTAC(new ConstAccess(0), place));
-                    codes.add(new GotoTAC(endLabel));
-                    codes.add(trueLabel, new MoveTAC(new ConstAccess(1), place));
+                    codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.NEQ, rr.place, new ConstAccess(0), trueLabel));
+                    codes.add(new MoveTAC(currentFrame.peek(), new ConstAccess(0), place));
+                    codes.add(new GotoTAC(currentFrame.peek(), endLabel));
+                    codes.add(trueLabel, new MoveTAC(currentFrame.peek(), new ConstAccess(1), place));
                     codes.add(endLabel);
 
                 } else {
                     codes.addAll(lr.codes);
                     codes.addAll(rr.codes);
-                    codes.add(new BinOpTAC(op, lr.place, rr.place, place));
+                    codes.add(new BinOpTAC(currentFrame.peek(), op, lr.place, rr.place, place));
                 }
             }
 
@@ -524,31 +531,31 @@ public class Semant {
                 if (!notifier.hasError()) {
                     codes.addAll(lr.codes);
                     codes.addAll(rr.codes);
-                    Temp t = Temp.newTemp();
-                    codes.add(new CallExternTAC(sym("strcmp"), lr.place, rr.place, null, t));
+                    Temp t = Temp.newTemp(currentFrame.peek());
+                    codes.add(new CallExternTAC(currentFrame.peek(), sym("strcmp"), lr.place, rr.place, null, t));
                     switch (expr.op) {
                         case EQ:
-                            codes.add(new BinOpTAC(BinOpTAC.BinOp.EQ, t, new ConstAccess(0), place));
+                            codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.EQ, t, new ConstAccess(0), place));
                             break;
 
                         case NEQ:
-                            codes.add(new BinOpTAC(BinOpTAC.BinOp.NEQ, t, new ConstAccess(0), place));
+                            codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.NEQ, t, new ConstAccess(0), place));
                             break;
 
                         case LT:
-                            codes.add(new BinOpTAC(BinOpTAC.BinOp.LT, t, new ConstAccess(0), place));
+                            codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.LT, t, new ConstAccess(0), place));
                             break;
 
                         case LEQ:
-                            codes.add(new BinOpTAC(BinOpTAC.BinOp.LEQ, t, new ConstAccess(0), place));
+                            codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.LEQ, t, new ConstAccess(0), place));
                             break;
 
                         case GT:
-                            codes.add(new BinOpTAC(BinOpTAC.BinOp.GT, t, new ConstAccess(0), place));
+                            codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.GT, t, new ConstAccess(0), place));
                             break;
 
                         case GEQ:
-                            codes.add(new BinOpTAC(BinOpTAC.BinOp.GEQ, t, new ConstAccess(0), place));
+                            codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.GEQ, t, new ConstAccess(0), place));
                             break;
                     }
                 }
@@ -567,7 +574,7 @@ public class Semant {
             if (!notifier.hasError()) {
                 codes.addAll(lr.codes);
                 codes.addAll(rr.codes);
-                codes.add(new BinOpTAC(op, lr.place, rr.place, place));
+                codes.add(new BinOpTAC(currentFrame.peek(), op, lr.place, rr.place, place));
             }
 
         } else
@@ -589,12 +596,12 @@ public class Semant {
             FieldList q = expr.fields;
 
             IntermediateCodeList codes = new IntermediateCodeList();
-            Temp place = Temp.newTemp();
+            Temp place = Temp.newTemp(currentFrame.peek());
             if (!notifier.hasError()) {
-                Temp tsize = Temp.newTemp();
-                codes.add(new BinOpTAC(BinOpTAC.BinOp.MUL, new ConstAccess(p.length()), ir.wordLength, tsize));
+                Temp tsize = Temp.newTemp(currentFrame.peek());
+                codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.MUL, new ConstAccess(p.length()), ir.wordLength, tsize));
                 ir.funcTable.put(sym("malloc"));
-                codes.add(new CallExternTAC(sym("malloc"), tsize, null, null, place));
+                codes.add(new CallExternTAC(currentFrame.peek(), sym("malloc"), tsize, null, null, place));
             }
 
             int offset = 0;
@@ -607,7 +614,7 @@ public class Semant {
 
                 if (!notifier.hasError()) {
                     codes.addAll(qr.codes);
-                    codes.add(new MoveTAC(qr.place, new MemAccess(place, new ConstAccess(offset))));
+                    codes.add(new MoveTAC(currentFrame.peek(), qr.place, new MemAccess(place, new ConstAccess(offset))));
                 }
 
                 p = p.next;
@@ -646,10 +653,10 @@ public class Semant {
         if (!notifier.hasError()) {
             codes.add(beginWhile);
             codes.addAll(cr.codes);
-            codes.add(new BranchTAC(BranchTAC.BranchType.EQ,
+            codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.EQ,
                         cr.place, new ConstAccess(0), endWhile));
             codes.addAll(br.codes);
-            codes.add(new GotoTAC(beginWhile));
+            codes.add(new GotoTAC(currentFrame.peek(), beginWhile));
             codes.add(endWhile);
         }
 
@@ -685,7 +692,7 @@ public class Semant {
                 if (type == null)
                     notifier.error(vd.type.toString() + " undefined");
                 else {
-                    Temp t = Temp.newTemp();
+                    Temp t = Temp.newTemp(currentFrame.peek());
 
                     vt.put(vd.id, new VarEntry(type, t));
                     TranslateResult ir = transExpr(vd.value);
@@ -693,11 +700,11 @@ public class Semant {
                     
                     if (!notifier.hasError()) {
                         codes.addAll(ir.codes);
-                        codes.add(new MoveTAC(ir.place, t));
+                        codes.add(new MoveTAC(currentFrame.peek(), ir.place, t));
                     }
                 }
             } else {
-                Temp t = Temp.newTemp();
+                Temp t = Temp.newTemp(currentFrame.peek());
 
                 TranslateResult ir = transExpr(vd.value);
                 type.Type type = ir.type;
@@ -711,7 +718,7 @@ public class Semant {
 
                 if (!notifier.hasError()) {
                     codes.addAll(ir.codes);
-                    codes.add(new MoveTAC(ir.place, t));
+                    codes.add(new MoveTAC(currentFrame.peek(), ir.place, t));
                 }
             }
 
@@ -761,14 +768,16 @@ public class Semant {
                         result = new type.Int();
                     }
 
+                    Frame frame = new Frame(Label.newLabel(fd.name.toString()));
                     Temp tResult = null;
                     if (!(result.actual() instanceof type.Void))
-                        tResult = Temp.newTemp();
+                        tResult = Temp.newTemp(frame);
                     
                     type.Record pp = transTypeFields(fd.params);
-                    FuncEntry entry = new FuncEntry(pp, result, tResult, Label.newLabel(), false);
+                    frame.returnValue = tResult;
+                    FuncEntry entry = new FuncEntry(pp, result, frame, false);
                     while (pp != null && !pp.isEmpty()) {
-                        entry.frame.params.add(Temp.newTemp());
+                        frame.params.add(Temp.newTemp(frame));
                         pp = pp.next;
                     }
                     vt.put(fd.name, entry);
@@ -790,25 +799,28 @@ public class Semant {
 
                 funcStack.push(fe);
                 breakStack.push(null);
+                currentFrame.push(fe.frame);
+
                 TranslateResult te = transExpr(fd.body);
-                breakStack.pop();
-                funcStack.pop();
 
                 checkType(fe.result, te.type, fd.body.pos);
 
-                vt.endScope();
-
                 if (!notifier.hasError()) {
-                    codes.add(fe.place);
+                    codes.add(fe.frame.place);
                     codes.addAll(te.codes);
                     if (!(fe.result.actual() instanceof type.Void))
-                        codes.add(new MoveTAC(te.place, fe.frame.returnValue));
-                    codes.add(new ReturnTAC());
+                        codes.add(new MoveTAC(currentFrame.peek(), te.place, fe.frame.returnValue));
+                    codes.add(new ReturnTAC(currentFrame.peek()));
                 }
+
+                currentFrame.pop();
+                breakStack.pop();
+                funcStack.pop();
+                vt.endScope();
             }
 
             Label skip = Label.newLabel();
-            codes.addFirst(new GotoTAC(skip));
+            codes.addFirst(new GotoTAC(currentFrame.peek(), skip));
             codes.add(skip);
             codes.addAll(transDeclList(p).codes);
             return new TranslateResult(codes, null);
@@ -889,8 +901,6 @@ public class Semant {
                 place = ((VarEntry) entry).place;
                 if (assignment && !((VarEntry) entry).assignable)
                     notifier.error(vl.name.toString() + " cannot be assigned here", vl.pos);
-                if (vt.isForeign(vl.name) && !funcStack.empty() && funcStack.peek() != null)
-                    funcStack.peek().foreigns.add(vl.name);
             }
             return new TranslateResult(new IntermediateCodeList(), type, place);
 
@@ -916,8 +926,8 @@ public class Semant {
 
                     if (!notifier.hasError()) {
                         int offset = temp.fieldIndex(fl.id);
-                        Temp to = Temp.newTemp();
-                        codes.add(new BinOpTAC(BinOpTAC.BinOp.MUL, new ConstAccess(offset), ir.wordLength, to));
+                        Temp to = Temp.newTemp(currentFrame.peek());
+                        codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.MUL, new ConstAccess(offset), ir.wordLength, to));
                         SimpleAccess sa = convertToSimpleAccess(tr.place, codes);
                         place = new MemAccess(sa, to);
                     }
@@ -951,8 +961,8 @@ public class Semant {
                 codes.addAll(tr.codes);
                 codes.addAll(tr2.codes);
                 SimpleAccess sa = convertToSimpleAccess(tr.place, codes);
-                Temp to = Temp.newTemp();
-                codes.add(new BinOpTAC(BinOpTAC.BinOp.MUL, tr2.place, ir.wordLength, to));
+                Temp to = Temp.newTemp(currentFrame.peek());
+                codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.MUL, tr2.place, ir.wordLength, to));
                 place = new MemAccess(sa, to);
             }
 

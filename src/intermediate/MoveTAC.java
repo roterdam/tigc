@@ -1,7 +1,10 @@
 package intermediate;
 
+import frame.Frame;
+
 public class MoveTAC extends ThreeAddressCode {
-    public MoveTAC(Access src, AssignableAccess dst) {
+    public MoveTAC(Frame frame, Access src, AssignableAccess dst) {
+        super(frame);
         this.op1 = src;
         this.op2 = null;
         this.dst = (Access)dst;

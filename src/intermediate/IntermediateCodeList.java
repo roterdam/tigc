@@ -1,9 +1,10 @@
 package intermediate;
 
 import java.util.*;
+import util.*;
 
 public class IntermediateCodeList implements Iterable<IntermediateCode> {
-    private LinkedList<IntermediateCode> codes = new LinkedList<IntermediateCode>();
+    private SimpleLinkedList<IntermediateCode> codes = new SimpleLinkedList<IntermediateCode>();
 
     public void add(Label label, ThreeAddressCode tac, String comment) {
         codes.add(new IntermediateCode(label, tac, comment));

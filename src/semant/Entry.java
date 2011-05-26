@@ -35,29 +35,22 @@ class FuncEntry extends Entry {
     }
     
     type.Record params;
-    java.util.HashSet<symbol.Symbol> foreigns;
     java.util.ArrayList<Invoking> invokings;
     type.Type result;
-    Label place = null;
     boolean isExtern; 
     Frame frame;
 
-    public FuncEntry(type.Record params, type.Type result, Temp tResult, Label place,
-            java.util.HashSet<symbol.Symbol> foreigns, java.util.ArrayList<Invoking> invokings,
+    public FuncEntry(type.Record params, type.Type result, Frame frame, java.util.ArrayList<Invoking> invokings,
             boolean isExtern) {
         this.params = params;
         this.result = result;
-        this.foreigns = foreigns;
         this.invokings = invokings;
-        this.place = place;
         this.isExtern = isExtern;
-        frame = new Frame();
-        frame.returnValue = tResult;
+        this.frame = frame;
     }
 
-    public FuncEntry(type.Record params, type.Type result, Temp tResult, Label place, boolean isExtern) {
-        this(params, result, tResult, place,
-                new java.util.HashSet<symbol.Symbol>(), new java.util.ArrayList<Invoking>(), isExtern);
+    public FuncEntry(type.Record params, type.Type result, Frame frame, boolean isExtern) {
+        this(params, result, frame, new java.util.ArrayList<Invoking>(), isExtern);
     }
 }
 

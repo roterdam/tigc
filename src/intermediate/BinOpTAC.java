@@ -1,5 +1,7 @@
 package intermediate;
 
+import frame.Frame;
+
 public class BinOpTAC extends OpTAC {
     public enum BinOp {
         ADD, SUB, MUL, DIV,
@@ -8,7 +10,8 @@ public class BinOpTAC extends OpTAC {
 
     public BinOp op;
 
-    public BinOpTAC(BinOp op, Access op1, Access op2, AssignableAccess dst) {
+    public BinOpTAC(Frame frame, BinOp op, Access op1, Access op2, AssignableAccess dst) {
+        super(frame);
         this.op = op;
         this.op1 = op1;
         this.op2 = op2;

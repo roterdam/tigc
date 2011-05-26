@@ -1,10 +1,13 @@
 package intermediate;
 
+import frame.Frame;
+
 public class CallExternTAC extends ThreeAddressCode {
     public symbol.Symbol place;
     public Access param1, param2, param3;
 
-    public CallExternTAC(symbol.Symbol place, Access param1, Access param2, Access param3, AssignableAccess dst) {
+    public CallExternTAC(Frame frame, symbol.Symbol place, Access param1, Access param2, Access param3, AssignableAccess dst) {
+        super(frame);
         this.param1 = param1;
         this.param2 = param2;
         this.param3 = param3;

@@ -8,8 +8,10 @@ public class Frame {
     public ArrayList<Temp> params = new ArrayList<Temp>();
     public ArrayList<Temp> locals = new ArrayList<Temp>();
     public ArrayList<Label> returns = new ArrayList<Label>();
+    public Label place;
 
-    public Frame() {
+    public Frame(Label place) {
+        this.place = place;
     }
 }
 
