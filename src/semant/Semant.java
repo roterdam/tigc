@@ -247,6 +247,7 @@ public class Semant {
                              codesParam = new IntermediateCodeList();
         Iterator<Temp> iter = func.isExtern ? null : func.frame.params.iterator();
         ArrayList<Access> actuals = new ArrayList<Access>();
+        ThreeAddressCode call = func.isExtern ? null : new CallTAC(currentFrame.peek(), func.frame.place);
         while (p != null && !p.isEmpty() && q != null) {
             TranslateResult tq = transExpr(q.expr);
             checkType(p.type, tq.type, q.expr.pos);
@@ -255,7 +256,7 @@ public class Semant {
             if (!notifier.hasError())
                 codes.addAll(tq.codes);
             if (!func.isExtern && !notifier.hasError())
-                codesParam.add(new MoveTAC(currentFrame.peek(), tq.place, iter.next()));
+                ((CallTAC) call).addParam(tq.place, iter.next());
 
             p = p.next;
             q = q.next;
@@ -290,10 +291,11 @@ public class Semant {
                         break;
                 }
             } else {
-                codes.addAll(codesParam);
-                if (func.frame.returnValue != null)
-                    ret = func.frame.returnValue;
-                codes.add(new CallTAC(currentFrame.peek(), func.frame.place));
+                codes.add(call);
+                if (func.frame.returnValue != null) {
+                    ret = Temp.newTemp(currentFrame.peek());
+                    codes.add(new MoveTAC(currentFrame.peek(), func.frame.returnValue, ret));
+                }
             }
         }
 
