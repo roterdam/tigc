@@ -9,7 +9,7 @@ JC2 = javac -d bin/ -cp bin/
 
 all: bin/Main.class
 
-debug: all bin/tester/SymbolTableTester.class bin/tester/ParserTester.class bin/tester/SemantTester.class bin/tester/Mid.class bin/tester/SimpleLinkedListTester.class
+debug: all bin/tester/SymbolTableTester.class bin/tester/ParserTester.class bin/tester/SemantTester.class bin/tester/Mid.class bin/tester/SimpleLinkedListTester.class bin/tester/GraphTester.class
 
 bin/Main.class: src/Main.java bin/parser/Parser.class bin/scanner/Scanner.class absyn bin/absyn/Printer.class bin/semant/Semant.class bin/notifier/Notifier.class intermediate
 	$(JC) src/Main.java
@@ -28,6 +28,9 @@ bin/tester/Mid.class: src/tester/Mid.java bin/parser/Parser.class absyn bin/sema
 
 bin/tester/SimpleLinkedListTester.class: bin/util/SimpleLinkedList.class src/tester/SimpleLinkedListTester.java
 	$(JC) src/tester/SimpleLinkedListTester.java
+
+bin/tester/GraphTester.class: bin/util/Graph.class bin/util/GraphNode.class src/tester/GraphTester.java
+	$(JC) src/tester/GraphTester.java
 
 
 bin/symbol/Symbol.class: src/symbol/Symbol.java
@@ -246,7 +249,7 @@ bin/frame/Frame.class: bin/intermediate/Label.class bin/intermediate/Temp.class 
 	$(JC) src/frame/Frame.java
 
 
-bin/semant/Semant.class: src/semant/Semant.java bin/type/Type.class bin/type/Int.class bin/type/String.class bin/type/Record.class bin/type/EmptyRecord.class bin/type/Array.class bin/type/Name.class bin/type/Nil.class bin/type/Void.class bin/symbol/Table.class bin/notifier/Notifier.class bin/semant/Entry.class bin/semant/TranslateResult.class absyn intermediate bin/frame/Frame.class
+bin/semant/Semant.class: src/semant/Semant.java bin/type/Type.class bin/type/Int.class bin/type/String.class bin/type/Record.class bin/type/EmptyRecord.class bin/type/Array.class bin/type/Name.class bin/type/Nil.class bin/type/Void.class bin/symbol/Table.class bin/notifier/Notifier.class bin/semant/Entry.class bin/semant/TranslateResult.class absyn intermediate bin/frame/Frame.class bin/util/Graph.class
 	$(JC) src/semant/Semant.java
 
 bin/semant/TranslateResult.class: src/semant/TranslateResult.java bin/intermediate/IntermediateCodeList.class
@@ -284,6 +287,12 @@ bin/type/Name.class: src/type/Name.java bin/type/Type.class bin/symbol/Symbol.cl
 
 bin/util/SimpleLinkedList.class: src/util/SimpleLinkedList.java
 	$(JC) src/util/SimpleLinkedList.java
+
+bin/util/Graph.class: src/util/Graph.java
+	$(JC) src/util/Graph.java
+
+bin/util/GraphNode.class: src/util/GraphNode.java
+	$(JC) src/util/GraphNode.java
 
 clean:
 	rm -fR src/scanner/Scanner.java src/scanner/Scanner.java~ src/parser/Parser.java src/parser/sym.java bin/Main.class bin/parser bin/scanner bin/absyn bin/symbol bin/tester bin/type bin/semant bin/notifier bin/intermediate bin/arch bin/frame bin/util
