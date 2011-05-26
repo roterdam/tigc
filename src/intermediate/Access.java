@@ -1,8 +1,6 @@
 package intermediate;
 
-public abstract class Access {
-    public String toString() {
-        return "";
-    }
+public abstract interface Access {
+    public abstract String toString();
 }
 

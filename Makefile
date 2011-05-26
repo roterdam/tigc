@@ -144,9 +144,9 @@ bin/absyn/Printer.class: absyn src/absyn/Printer.java
 	$(JC) src/absyn/Printer.java
 
 
-intermediate: bin/intermediate/ThreeAddressCode.class bin/intermediate/Label.class bin/intermediate/Access.class bin/intermediate/AssignableAccess.class bin/intermediate/SimpleAccess.class bin/intermediate/ConstAccess.class bin/intermediate/UnknownConstAccess.class bin/intermediate/TempAccess.class bin/intermediate/MemAccess.class bin/intermediate/Temp.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/intermediate/IntermediateCodeList.class bin/intermediate/IR.class
+intermediate: bin/intermediate/ThreeAddressCode.class bin/intermediate/Label.class bin/intermediate/Access.class bin/intermediate/AssignableAccess.class bin/intermediate/SimpleAccess.class bin/intermediate/ConstAccess.class bin/intermediate/UnknownConstAccess.class bin/intermediate/MemAccess.class bin/intermediate/Temp.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/intermediate/IntermediateCodeList.class bin/intermediate/IR.class
 
-bin/intermediate/ThreeAddressCode.class: bin/intermediate/Access.class src/intermediate/ThreeAddressCode.java
+bin/intermediate/ThreeAddressCode.class: bin/frame/Frame.class bin/intermediate/Access.class src/intermediate/ThreeAddressCode.java
 	$(JC) src/intermediate/ThreeAddressCode.java
 
 bin/intermediate/Label.class: src/intermediate/Label.java
@@ -155,14 +155,14 @@ bin/intermediate/Label.class: src/intermediate/Label.java
 bin/intermediate/Access.class: src/intermediate/Access.java
 	$(JC) src/intermediate/Access.java
 
-bin/intermediate/AssignableAccess.class: src/intermediate/AssignableAccess.java
+bin/intermediate/AssignableAccess.class: bin/intermediate/Access.class src/intermediate/AssignableAccess.java
 	$(JC) src/intermediate/AssignableAccess.java
 
-bin/intermediate/SimpleAccess.class: src/intermediate/SimpleAccess.java
+bin/intermediate/SimpleAccess.class: bin/intermediate/Access.class src/intermediate/SimpleAccess.java
 	$(JC) src/intermediate/SimpleAccess.java
 
-bin/intermediate/Temp.class: src/intermediate/Temp.java
-	$(JC) src/intermediate/Temp.java
+bin/intermediate/Temp.class: bin/intermediate/AssignableAccess.class bin/intermediate/SimpleAccess.class src/intermediate/Temp.java src/frame/Frame.java
+	$(JC) src/intermediate/Temp.java src/frame/Frame.java
 
 bin/intermediate/ConstAccess.class: bin/intermediate/SimpleAccess.class src/intermediate/ConstAccess.java
 	$(JC) src/intermediate/ConstAccess.java
@@ -170,10 +170,7 @@ bin/intermediate/ConstAccess.class: bin/intermediate/SimpleAccess.class src/inte
 bin/intermediate/UnknownConstAccess.class: bin/intermediate/ConstAccess.class src/intermediate/UnknownConstAccess.java
 	$(JC) src/intermediate/UnknownConstAccess.java
 
-bin/intermediate/TempAccess.class: bin/intermediate/AssignableAccess.class bin/intermediate/Temp.class bin/intermediate/SimpleAccess.class src/intermediate/TempAccess.java
-	$(JC) src/intermediate/TempAccess.java
-
-bin/intermediate/MemAccess.class: bin/intermediate/AssignableAccess.class bin/intermediate/SimpleAccess.class src/intermediate/MemAccess.java
+bin/intermediate/MemAccess.class: bin/intermediate/AssignableAccess.class src/intermediate/MemAccess.java
 	$(JC) src/intermediate/MemAccess.java
 
 bin/intermediate/MoveTAC.class: bin/intermediate/ThreeAddressCode.class src/intermediate/MoveTAC.java
@@ -243,13 +240,17 @@ src/parser/sym.java: doc/parser.cup
 	cd src/parser; java -jar ../../lib/java-cup-11a.jar -parser Parser ../../doc/parser.cup
 
 
-bin/semant/Semant.class: src/semant/Semant.java bin/type/Type.class bin/type/Int.class bin/type/String.class bin/type/Record.class bin/type/EmptyRecord.class bin/type/Array.class bin/type/Name.class bin/type/Nil.class bin/type/Void.class bin/symbol/Table.class bin/notifier/Notifier.class bin/semant/Entry.class bin/semant/TranslateResult.class absyn intermediate
+bin/frame/Frame.class: bin/intermediate/Label.class bin/intermediate/Temp.class src/frame/Frame.java
+	$(JC) src/frame/Frame.java
+
+
+bin/semant/Semant.class: src/semant/Semant.java bin/type/Type.class bin/type/Int.class bin/type/String.class bin/type/Record.class bin/type/EmptyRecord.class bin/type/Array.class bin/type/Name.class bin/type/Nil.class bin/type/Void.class bin/symbol/Table.class bin/notifier/Notifier.class bin/semant/Entry.class bin/semant/TranslateResult.class absyn intermediate bin/frame/Frame.class
 	$(JC) src/semant/Semant.java
 
 bin/semant/TranslateResult.class: src/semant/TranslateResult.java bin/intermediate/IntermediateCodeList.class
 	$(JC) src/semant/TranslateResult.java
 
-bin/semant/Entry.class: bin/intermediate/Label.class bin/intermediate/Temp.class src/semant/Entry.java
+bin/semant/Entry.class: bin/intermediate/Label.class bin/intermediate/Temp.class src/semant/Entry.java bin/frame/Frame.class
 	$(JC) src/semant/Entry.java
 
 bin/type/Type.class: src/type/Type.java
@@ -281,5 +282,5 @@ bin/type/Name.class: src/type/Name.java bin/type/Type.class bin/symbol/Symbol.cl
 
 
 clean:
-	rm -fR src/scanner/Scanner.java src/scanner/Scanner.java~ src/parser/Parser.java src/parser/sym.java bin/Main.class bin/parser bin/scanner bin/absyn bin/symbol bin/tester bin/type bin/semant bin/notifier bin/intermediate
+	rm -fR src/scanner/Scanner.java src/scanner/Scanner.java~ src/parser/Parser.java src/parser/sym.java bin/Main.class bin/parser bin/scanner bin/absyn bin/symbol bin/tester bin/type bin/semant bin/notifier bin/intermediate bin/arch bin/frame
 

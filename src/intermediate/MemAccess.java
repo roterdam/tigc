@@ -1,6 +1,6 @@
 package intermediate;
 
-public class MemAccess extends Access implements AssignableAccess {
+public class MemAccess implements AssignableAccess {
     public SimpleAccess base, offset;
 
     public MemAccess(SimpleAccess base, SimpleAccess offset) {

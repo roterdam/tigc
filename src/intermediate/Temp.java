@@ -1,7 +1,11 @@
 package intermediate;
 
-public class Temp {
+import frame.*;
+
+public class Temp implements AssignableAccess, SimpleAccess {
     private int id;
+
+    public Frame frame;
 
     private Temp(int id) {
         this.id = id;

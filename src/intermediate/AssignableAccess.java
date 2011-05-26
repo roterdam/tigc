@@ -1,5 +1,5 @@
 package intermediate;
 
-public interface AssignableAccess {
+public interface AssignableAccess extends Access {
 }
 

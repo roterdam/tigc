@@ -1,5 +1,5 @@
 package intermediate;
 
-public interface SimpleAccess {
+public interface SimpleAccess extends Access {
 }
 

@@ -11,7 +11,7 @@ public class Semant {
     private Table<type.Type> tt;
     private Notifier notifier;
 
-    private Stack<FuncEntry> invokingStack;
+    private Stack<FuncEntry> funcStack;
     private Stack<Label> breakStack;
     private IR ir;
 
@@ -86,7 +86,7 @@ public class Semant {
     public Semant(Notifier notifier) {
         this.notifier = notifier;
 
-        invokingStack = new Stack<FuncEntry>();
+        funcStack = new Stack<FuncEntry>();
         breakStack = new Stack<Label>();
         tt = new Table<type.Type>();
         vt = new Table<Entry>();
@@ -110,29 +110,11 @@ public class Semant {
 
     private SimpleAccess convertToSimpleAccess(Access access, IntermediateCodeList codes) {
         if (access instanceof MemAccess) {
-            TempAccess ta = new TempAccess(Temp.newTemp());
-            codes.add(new MoveTAC(access, ta));
-            return ta;
+            Temp t = Temp.newTemp();
+            codes.add(new MoveTAC(access, t));
+            return t;
         } else
             return (SimpleAccess)access;
-    }
-
-    private void calcFullForeigns(ArrayList<FuncEntry> entries) {
-        boolean change = false;
-        do {
-            change = false;
-            for (FuncEntry fe: entries) {
-                for (FuncEntry.Invoking invoking: fe.invokings) {
-                    Entry target = vt.get(invoking.name);
-                    if (target instanceof FuncEntry) {
-                        HashSet<Symbol> t = new HashSet<Symbol>(((FuncEntry) target).foreigns);
-                        t.removeAll(invoking.locals);
-                        if (fe.foreigns.addAll(t))
-                            change = true;
-                    }
-                }
-            }
-        } while (change);
     }
 
     private TranslateResult transExpr(absyn.Expr expr) {
@@ -195,26 +177,24 @@ public class Semant {
             IntermediateCodeList codes = new IntermediateCodeList();
             codes.addAll(size.codes);
             codes.addAll(init.codes);
-            TempAccess tresa = null;
+            Temp tres = Temp.newTemp();
             if (!notifier.hasError()) {
-                Temp tsize = Temp.newTemp(), tres = Temp.newTemp();
-                tresa = new TempAccess(tres);
-                codes.add(new BinOpTAC(BinOpTAC.BinOp.MUL, size.place, ir.wordLength, new TempAccess(tsize)));
+                Temp tsize = Temp.newTemp();
+                codes.add(new BinOpTAC(BinOpTAC.BinOp.MUL, size.place, ir.wordLength, tsize));
                 ir.funcTable.put(sym("malloc"));
-                codes.add(new CallExternTAC(sym("malloc"), new TempAccess(tsize), null, null, tresa));
+                codes.add(new CallExternTAC(sym("malloc"), tsize, null, null, tres));
 
                 Label l1 = Label.newLabel(), l2 = Label.newLabel();
                 Temp ti = Temp.newTemp();
-                codes.add(new MoveTAC(new ConstAccess(0), new TempAccess(ti)));
-                codes.add(l1, new BranchTAC(BranchTAC.BranchType.GEQ, new TempAccess(ti),
-                            new TempAccess(tsize), l2));
-                codes.add(new MoveTAC(init.place, new MemAccess(tresa, new TempAccess(ti))));
-                codes.add(new BinOpTAC(BinOpTAC.BinOp.ADD, new TempAccess(ti), ir.wordLength, new TempAccess(ti)));
+                codes.add(new MoveTAC(new ConstAccess(0), ti));
+                codes.add(l1, new BranchTAC(BranchTAC.BranchType.GEQ, ti, tsize, l2));
+                codes.add(new MoveTAC(init.place, new MemAccess(tres, ti)));
+                codes.add(new BinOpTAC(BinOpTAC.BinOp.ADD, ti, ir.wordLength, ti));
                 codes.add(new GotoTAC(l1));
                 codes.add(l2);
             }
 
-            return new TranslateResult(codes, t, tresa);
+            return new TranslateResult(codes, t, tres);
         }
     }
 
@@ -258,7 +238,7 @@ public class Semant {
 
         IntermediateCodeList codes = new IntermediateCodeList(),
                              codesParam = new IntermediateCodeList();
-        Iterator<FuncEntry.Formal> iter = func.formals.iterator();
+        Iterator<Temp> iter = func.frame.params.iterator();
         ArrayList<Access> actuals = new ArrayList<Access>();
         while (p != null && !p.isEmpty() && q != null) {
             TranslateResult tq = transExpr(q.expr);
@@ -268,17 +248,17 @@ public class Semant {
             if (!notifier.hasError())
                 codes.addAll(tq.codes);
             if (!func.isExtern && !notifier.hasError())
-                codesParam.add(new MoveTAC(tq.place, new TempAccess(iter.next().place)));
+                codesParam.add(new MoveTAC(tq.place, iter.next()));
 
             p = p.next;
             q = q.next;
         }
 
-        TempAccess ret = null;
+        Temp ret = null;
         if (!notifier.hasError()) {
             if (func.isExtern) {
                 if (!(func.result.actual() instanceof type.Void))
-                    ret = new TempAccess(Temp.newTemp());
+                    ret = Temp.newTemp();
 
                 ir.funcTable.put(expr.func);
                 switch (actuals.size()) {
@@ -304,7 +284,8 @@ public class Semant {
                 }
             } else {
                 codes.addAll(codesParam);
-                ret = new TempAccess(func.tResult);
+                if (func.frame.returnValue != null)
+                    ret = func.frame.returnValue;
                 codes.add(new CallTAC(func.place));
             }
         }
@@ -312,8 +293,8 @@ public class Semant {
         if ((p != null && !p.isEmpty()) || q != null)
             notifier.error("Function param number mismatch", expr.pos);
 
-        if (!invokingStack.empty() && invokingStack.peek() != null)
-            invokingStack.peek().invokings.add(new FuncEntry.Invoking(expr.func, vt.getLocals()));
+        if (!funcStack.empty() && funcStack.peek() != null)
+            funcStack.peek().invokings.add(new FuncEntry.Invoking(expr.func, vt.getLocals()));
 
         return new TranslateResult(codes, func.result, ret);
     }
@@ -339,10 +320,10 @@ public class Semant {
         if (!notifier.hasError()) {
             codes.addAll(br.codes);
             codes.addAll(er.codes);
-            codes.add(new MoveTAC(br.place, new TempAccess(inductionVar)));
+            codes.add(new MoveTAC(br.place, inductionVar));
             Label beginLoop = Label.newLabel();
             codes.add(beginLoop);
-            codes.add(new BranchTAC(BranchTAC.BranchType.GT, new TempAccess(inductionVar), er.place, endLoop));
+            codes.add(new BranchTAC(BranchTAC.BranchType.GT, inductionVar, er.place, endLoop));
             codes.addAll(result.codes);
             codes.add(new GotoTAC(beginLoop));
             codes.add(endLoop);
@@ -361,9 +342,9 @@ public class Semant {
 
             IntermediateCodeList codes = new IntermediateCodeList();
             Label elseIf = Label.newLabel(), endIf = Label.newLabel();
-            TempAccess place = null;
+            Temp place = null;
             if (!(thenr.type.actual() instanceof type.Void))
-                place = new TempAccess(Temp.newTemp());
+                place = Temp.newTemp();
             if (!notifier.hasError()) {
                 codes.addAll(cr.codes);
                 codes.add(new BranchTAC(BranchTAC.BranchType.EQ, cr.place, new ConstAccess(0), elseIf));
@@ -429,7 +410,7 @@ public class Semant {
         checkType(new type.Int(), te.type, expr.value.pos);
 
         IntermediateCodeList codes = new IntermediateCodeList();
-        TempAccess place = new TempAccess(Temp.newTemp());
+        Temp place = Temp.newTemp();
         if (!notifier.hasError()) {
             codes.addAll(te.codes);
             codes.add(new UniOpTAC(UniOpTAC.UniOp.NEG, te.place, place));
@@ -493,7 +474,7 @@ public class Semant {
 
 
         IntermediateCodeList codes = new IntermediateCodeList();
-        TempAccess place = new TempAccess(Temp.newTemp());
+        Temp place = Temp.newTemp();
 
         if (la instanceof type.Int || ra instanceof type.Int) {
             checkType(new type.Int(), la, expr.left.pos);
@@ -543,7 +524,7 @@ public class Semant {
                 if (!notifier.hasError()) {
                     codes.addAll(lr.codes);
                     codes.addAll(rr.codes);
-                    TempAccess t = new TempAccess(Temp.newTemp());
+                    Temp t = Temp.newTemp();
                     codes.add(new CallExternTAC(sym("strcmp"), lr.place, rr.place, null, t));
                     switch (expr.op) {
                         case EQ:
@@ -608,9 +589,9 @@ public class Semant {
             FieldList q = expr.fields;
 
             IntermediateCodeList codes = new IntermediateCodeList();
-            TempAccess place = new TempAccess(Temp.newTemp());
+            Temp place = Temp.newTemp();
             if (!notifier.hasError()) {
-                TempAccess tsize = new TempAccess(Temp.newTemp());
+                Temp tsize = Temp.newTemp();
                 codes.add(new BinOpTAC(BinOpTAC.BinOp.MUL, new ConstAccess(p.length()), ir.wordLength, tsize));
                 ir.funcTable.put(sym("malloc"));
                 codes.add(new CallExternTAC(sym("malloc"), tsize, null, null, place));
@@ -705,7 +686,6 @@ public class Semant {
                     notifier.error(vd.type.toString() + " undefined");
                 else {
                     Temp t = Temp.newTemp();
-                    TempAccess ta = new TempAccess(t);
 
                     vt.put(vd.id, new VarEntry(type, t));
                     TranslateResult ir = transExpr(vd.value);
@@ -713,12 +693,11 @@ public class Semant {
                     
                     if (!notifier.hasError()) {
                         codes.addAll(ir.codes);
-                        codes.add(new MoveTAC(ir.place, ta));
+                        codes.add(new MoveTAC(ir.place, t));
                     }
                 }
             } else {
                 Temp t = Temp.newTemp();
-                TempAccess ta = new TempAccess(t);
 
                 TranslateResult ir = transExpr(vd.value);
                 type.Type type = ir.type;
@@ -732,7 +711,7 @@ public class Semant {
 
                 if (!notifier.hasError()) {
                     codes.addAll(ir.codes);
-                    codes.add(new MoveTAC(ir.place, ta));
+                    codes.add(new MoveTAC(ir.place, t));
                 }
             }
 
@@ -781,15 +760,15 @@ public class Semant {
                         notifier.error(fd.type.toString() + " undefined; assumed INT", fd.pos);
                         result = new type.Int();
                     }
+
                     Temp tResult = null;
                     if (!(result.actual() instanceof type.Void))
                         tResult = Temp.newTemp();
                     
                     type.Record pp = transTypeFields(fd.params);
                     FuncEntry entry = new FuncEntry(pp, result, tResult, Label.newLabel(), false);
-                    entry.formals = new LinkedList<FuncEntry.Formal>();
                     while (pp != null && !pp.isEmpty()) {
-                        entry.formals.add(new FuncEntry.Formal(pp.field, pp.type, Temp.newTemp()));
+                        entry.frame.params.add(Temp.newTemp());
                         pp = pp.next;
                     }
                     vt.put(fd.name, entry);
@@ -797,22 +776,23 @@ public class Semant {
                 else
                     notifier.error(fd.name.toString() + " already defined in the same block", fd.pos);
             }
-            ArrayList<FuncEntry> funcEntries = new ArrayList<FuncEntry>();
             for (p = expr; p != null && p.decl instanceof FuncDecl; p = p.next) {
                 FuncDecl fd = (FuncDecl) p.decl;
                 
                 vt.beginScope(true);
 
                 FuncEntry fe = (FuncEntry) vt.get(fd.name);
-                funcEntries.add(fe);
-                for (FuncEntry.Formal f: fe.formals)
-                    vt.put(f.name, new VarEntry(f.type, f.place));
+                type.Record pp = fe.params;
+                for (Temp t: fe.frame.params) {
+                    vt.put(pp.field, new VarEntry(pp.type, t));
+                    pp = pp.next;
+                }
 
-                invokingStack.push(fe);
+                funcStack.push(fe);
                 breakStack.push(null);
                 TranslateResult te = transExpr(fd.body);
                 breakStack.pop();
-                invokingStack.pop();
+                funcStack.pop();
 
                 checkType(fe.result, te.type, fd.body.pos);
 
@@ -822,11 +802,10 @@ public class Semant {
                     codes.add(fe.place);
                     codes.addAll(te.codes);
                     if (!(fe.result.actual() instanceof type.Void))
-                        codes.add(new MoveTAC(te.place, new TempAccess(fe.tResult)));
+                        codes.add(new MoveTAC(te.place, fe.frame.returnValue));
                     codes.add(new ReturnTAC());
                 }
             }
-            calcFullForeigns(funcEntries);
 
             Label skip = Label.newLabel();
             codes.addFirst(new GotoTAC(skip));
@@ -907,11 +886,11 @@ public class Semant {
                 type = new type.Int();
             } else {
                 type = ((VarEntry) entry).type;
-                place = new TempAccess(((VarEntry) entry).place);
+                place = ((VarEntry) entry).place;
                 if (assignment && !((VarEntry) entry).assignable)
                     notifier.error(vl.name.toString() + " cannot be assigned here", vl.pos);
-                if (vt.isForeign(vl.name) && !invokingStack.empty() && invokingStack.peek() != null)
-                    invokingStack.peek().foreigns.add(vl.name);
+                if (vt.isForeign(vl.name) && !funcStack.empty() && funcStack.peek() != null)
+                    funcStack.peek().foreigns.add(vl.name);
             }
             return new TranslateResult(new IntermediateCodeList(), type, place);
 
@@ -937,7 +916,7 @@ public class Semant {
 
                     if (!notifier.hasError()) {
                         int offset = temp.fieldIndex(fl.id);
-                        TempAccess to = new TempAccess(Temp.newTemp());
+                        Temp to = Temp.newTemp();
                         codes.add(new BinOpTAC(BinOpTAC.BinOp.MUL, new ConstAccess(offset), ir.wordLength, to));
                         SimpleAccess sa = convertToSimpleAccess(tr.place, codes);
                         place = new MemAccess(sa, to);
@@ -972,7 +951,7 @@ public class Semant {
                 codes.addAll(tr.codes);
                 codes.addAll(tr2.codes);
                 SimpleAccess sa = convertToSimpleAccess(tr.place, codes);
-                TempAccess to = new TempAccess(Temp.newTemp());
+                Temp to = Temp.newTemp();
                 codes.add(new BinOpTAC(BinOpTAC.BinOp.MUL, tr2.place, ir.wordLength, to));
                 place = new MemAccess(sa, to);
             }

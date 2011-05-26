@@ -1,6 +1,7 @@
 package semant;
 
 import intermediate.*;
+import frame.*;
 
 abstract class Entry {
 }
@@ -23,18 +24,6 @@ class VarEntry extends Entry {
 
 class FuncEntry extends Entry {
 
-    static class Formal {
-        symbol.Symbol name;
-        type.Type type;
-        Temp place;
-
-        public Formal(symbol.Symbol name, type.Type type, Temp place) {
-            this.name = name;
-            this.type = type;
-            this.place = place;
-        }
-    }
-
     static class Invoking {
         symbol.Symbol name;
         java.util.HashSet<symbol.Symbol> locals;
@@ -49,21 +38,21 @@ class FuncEntry extends Entry {
     java.util.HashSet<symbol.Symbol> foreigns;
     java.util.ArrayList<Invoking> invokings;
     type.Type result;
-    Temp tResult;
     Label place = null;
-    java.util.LinkedList<Formal> formals = new java.util.LinkedList<Formal>();
     boolean isExtern; 
+    Frame frame;
 
     public FuncEntry(type.Record params, type.Type result, Temp tResult, Label place,
             java.util.HashSet<symbol.Symbol> foreigns, java.util.ArrayList<Invoking> invokings,
             boolean isExtern) {
         this.params = params;
         this.result = result;
-        this.tResult = tResult;
         this.foreigns = foreigns;
         this.invokings = invokings;
         this.place = place;
         this.isExtern = isExtern;
+        frame = new Frame();
+        frame.returnValue = tResult;
     }
 
     public FuncEntry(type.Record params, type.Type result, Temp tResult, Label place, boolean isExtern) {
