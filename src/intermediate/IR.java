@@ -3,6 +3,7 @@ package intermediate;
 import arch.*;
 import frame.*;
 import java.util.*;
+import util.Graph;
 
 public class IR {
     public StringTable stringTable = new StringTable();
@@ -11,6 +12,7 @@ public class IR {
     public IntermediateCodeList codes = new IntermediateCodeList();
     public Frame globalFrame = null;
     public ArrayList funcFrames = new ArrayList<Frame>();
+    public Graph<Frame> callingGraph = new Graph<Frame>();
 
     public IR(Frame frame) {
         globalFrame = frame;

@@ -6,13 +6,13 @@ import absyn.*;
 import java.util.*;
 import intermediate.*;
 import frame.*;
+import util.Graph;
 
 public class Semant {
     private Table<Entry> vt;
     private Table<type.Type> tt;
     private Notifier notifier;
 
-    private Stack<FuncEntry> funcStack;
     private Stack<Label> breakStack;
     private Stack<Frame> currentFrame;
     private IR ir;
@@ -30,35 +30,35 @@ public class Semant {
         // function print(s : string)
         vt.put(sym("print"), new FuncEntry(
                     new type.Record(sym("s"), new type.String(), null),
-                    new type.Void(), null, null, true));
+                    new type.Void(), null, true));
 
         // function printi(i : int)
         vt.put(sym("printi"), new FuncEntry(
                     new type.Record(sym("i"), new type.Int(), null),
-                    new type.Void(), null, null, true));
+                    new type.Void(), null, true));
 
         // function flush()
         vt.put(sym("flush"), new FuncEntry(
-                    null, new type.Void(), null, null, true));
+                    null, new type.Void(), null, true));
 
         // function getchar() : string
         vt.put(sym("getchar"), new FuncEntry(
-                    null, new type.String(), null, null, true));
+                    null, new type.String(), null, true));
 
         // function ord(s: string) : int
         vt.put(sym("ord"), new FuncEntry(
                     new type.Record(sym("s"), new type.String(), null),
-                    new type.Int(), null, null, true));
+                    new type.Int(), null, true));
 
         // function chr(i: int) : string
         vt.put(sym("chr"), new FuncEntry(
                     new type.Record(sym("i"), new type.Int(), null),
-                    new type.String(), null, null, true));
+                    new type.String(), null, true));
 
         // function size(s: string) : int
         vt.put(sym("size"), new FuncEntry(
                     new type.Record(sym("s"), new type.String(), null),
-                    new type.Int(), null, null, true));
+                    new type.Int(), null, true));
 
         // function substring(s : string, first: int, n: int) : string
         vt.put(sym("substring"), new FuncEntry(
@@ -66,29 +66,28 @@ public class Semant {
                         new type.Record(sym("first"), new type.Int(),
                             new type.Record(sym("n"), new type.Int(), null)
                             )
-                        ), new type.String(), null, null, true));
+                        ), new type.String(), null, true));
         
         // function concat(s1: string, s2: string) : string
         vt.put(sym("concat"), new FuncEntry(
                     new type.Record(sym("s1"), new type.String(),
                         new type.Record(sym("s2"), new type.String(), null)
-                        ), new type.String(), null, null, true));
+                        ), new type.String(), null, true));
 
         // function not(i: int): int
         vt.put(sym("not"), new FuncEntry(
                     new type.Record(sym("i"), new type.Int(), null),
-                    new type.Int(), null, null, true));
+                    new type.Int(), null, true));
 
         // function exit(i: int)
         vt.put(sym("exit"), new FuncEntry(
                     new type.Record(sym("i"), new type.Int(), null),
-                    new type.Void(), null, null, true));
+                    new type.Void(), null, true));
     }
 
     public Semant(Notifier notifier) {
         this.notifier = notifier;
 
-        funcStack = new Stack<FuncEntry>();
         breakStack = new Stack<Label>();
         currentFrame = new Stack<Frame>();
         tt = new Table<type.Type>();
@@ -302,8 +301,7 @@ public class Semant {
         if ((p != null && !p.isEmpty()) || q != null)
             notifier.error("Function param number mismatch", expr.pos);
 
-        if (!funcStack.empty() && funcStack.peek() != null)
-            funcStack.peek().invokings.add(new FuncEntry.Invoking(expr.func, vt.getLocals()));
+        ir.callingGraph.addEdge(currentFrame.peek(), func.frame);
 
         return new TranslateResult(codes, func.result, ret);
     }
@@ -799,7 +797,6 @@ public class Semant {
                     pp = pp.next;
                 }
 
-                funcStack.push(fe);
                 breakStack.push(null);
                 currentFrame.push(fe.frame);
 
@@ -817,7 +814,7 @@ public class Semant {
 
                 currentFrame.pop();
                 breakStack.pop();
-                funcStack.pop();
+
                 vt.endScope();
             }
 

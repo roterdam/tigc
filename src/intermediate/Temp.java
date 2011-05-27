@@ -20,12 +20,5 @@ public class Temp implements AssignableAccess, SimpleAccess {
     public String toString() {
         return "t" + new Integer(id).toString();
     }
-
-    public boolean equals(Object o) {
-        if (o instanceof Temp)
-            return ((Temp) o).id == this.id;
-        else
-            return false;
-    }
 }
 

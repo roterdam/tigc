@@ -25,11 +25,5 @@ public class Label {
             s += "_" + tag;
         return s;
     }
-
-    public boolean equals(Object x) {
-        if (!(x instanceof Label))
-            return false;
-        return this.id == ((Label) x).id;
-    }
 }
 

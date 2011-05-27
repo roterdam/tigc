@@ -212,7 +212,7 @@ bin/intermediate/IntermediateCode.class: bin/intermediate/ThreeAddressCode.class
 bin/intermediate/IntermediateCodeList.class: bin/intermediate/Label.class bin/intermediate/IntermediateCode.class bin/util/SimpleLinkedList.class src/intermediate/IntermediateCodeList.java
 	$(JC) src/intermediate/IntermediateCodeList.java
 
-bin/intermediate/IR.class: bin/intermediate/UnknownConstAccess.class bin/intermediate/IntermediateCodeList.class bin/arch/StringTable.class bin/arch/ExternFunctionTable.class bin/frame/Frame.class src/intermediate/IR.java
+bin/intermediate/IR.class: bin/util/Graph.class bin/intermediate/UnknownConstAccess.class bin/intermediate/IntermediateCodeList.class bin/arch/StringTable.class bin/arch/ExternFunctionTable.class bin/frame/Frame.class src/intermediate/IR.java
 	$(JC) src/intermediate/IR.java
 
 
