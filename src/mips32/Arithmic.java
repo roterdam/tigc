@@ -12,7 +12,7 @@ class Arithmic extends Instruction {
     Temp dst, src1, src2;
     Op op;
 
-    public Arithmic(Frame frame, Op op, Temp src1, Temp src2, Temp dst) {
+    public Arithmic(Frame frame, Op op, Temp dst, Temp src1, Temp src2) {
         super(frame);
         this.op = op;
         this.dst = dst;
@@ -35,7 +35,7 @@ class Arithmic extends Instruction {
                 s = "mul";
                 break;
         }
-        return s + " " + map.get(src1) + ", " + map.get(src2) + ", " + map.get(dst);
+        return s + " " + map.get(dst) + ", " + map.get(src1) + ", " + map.get(src2);
     }
 }
 
