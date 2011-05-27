@@ -116,7 +116,7 @@ public class Semant {
 
     private SimpleAccess convertToSimpleAccess(Access access, IntermediateCodeList codes) {
         if (access instanceof MemAccess) {
-            Temp t = Temp.newTemp(currentFrame.peek());
+            Temp t = currentFrame.peek().addLocal();
             codes.add(new MoveTAC(currentFrame.peek(), access, t));
             return t;
         } else
@@ -183,15 +183,15 @@ public class Semant {
             IntermediateCodeList codes = new IntermediateCodeList();
             codes.addAll(size.codes);
             codes.addAll(init.codes);
-            Temp tres = Temp.newTemp(currentFrame.peek());
+            Temp tres = currentFrame.peek().addLocal();
             if (!notifier.hasError()) {
-                Temp tsize = Temp.newTemp(currentFrame.peek());
+                Temp tsize = currentFrame.peek().addLocal();
                 codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.MUL, size.place, ir.wordLength, tsize));
                 ir.funcTable.put(sym("malloc"));
                 codes.add(new CallExternTAC(currentFrame.peek(), sym("malloc"), tsize, null, null, tres));
 
                 Label l1 = Label.newLabel(), l2 = Label.newLabel();
-                Temp ti = Temp.newTemp(currentFrame.peek());
+                Temp ti = currentFrame.peek().addLocal();
                 codes.add(new MoveTAC(currentFrame.peek(), new ConstAccess(0), ti));
                 codes.add(l1, new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.GEQ, ti, tsize, l2));
                 codes.add(new MoveTAC(currentFrame.peek(), init.place, new MemAccess(tres, ti)));
@@ -265,7 +265,7 @@ public class Semant {
         if (!notifier.hasError()) {
             if (func.isExtern) {
                 if (!(func.result.actual() instanceof type.Void))
-                    ret = Temp.newTemp(currentFrame.peek());
+                    ret = currentFrame.peek().addLocal();
 
                 ir.funcTable.put(expr.func);
                 switch (actuals.size()) {
@@ -291,8 +291,13 @@ public class Semant {
                 }
             } else {
                 codes.add(call);
+
+                Label retLabel = Label.newLabel();
+                func.frame.returns.add(retLabel);
+                codes.add(retLabel);
+
                 if (func.frame.returnValue != null) {
-                    ret = Temp.newTemp(currentFrame.peek());
+                    ret = currentFrame.peek().addLocal();
                     codes.add(new MoveTAC(currentFrame.peek(), func.frame.returnValue, ret));
                 }
             }
@@ -313,7 +318,7 @@ public class Semant {
         checkType(new type.Int(), er.type, expr.end.pos);
 
         Label endLoop = Label.newLabel();
-        Temp inductionVar = Temp.newTemp(currentFrame.peek());
+        Temp inductionVar = currentFrame.peek().addLocal();
 
         vt.beginScope();
         vt.put(expr.var, new VarEntry(new type.Int(), false, inductionVar));
@@ -351,7 +356,7 @@ public class Semant {
             Label elseIf = Label.newLabel(), endIf = Label.newLabel();
             Temp place = null;
             if (!(thenr.type.actual() instanceof type.Void))
-                place = Temp.newTemp(currentFrame.peek());
+                place = currentFrame.peek().addLocal();
             if (!notifier.hasError()) {
                 codes.addAll(cr.codes);
                 codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.EQ, cr.place, new ConstAccess(0), elseIf));
@@ -417,7 +422,7 @@ public class Semant {
         checkType(new type.Int(), te.type, expr.value.pos);
 
         IntermediateCodeList codes = new IntermediateCodeList();
-        Temp place = Temp.newTemp(currentFrame.peek());
+        Temp place = currentFrame.peek().addLocal();
         if (!notifier.hasError()) {
             codes.addAll(te.codes);
             codes.add(new UniOpTAC(currentFrame.peek(), UniOpTAC.UniOp.NEG, te.place, place));
@@ -481,7 +486,7 @@ public class Semant {
 
 
         IntermediateCodeList codes = new IntermediateCodeList();
-        Temp place = Temp.newTemp(currentFrame.peek());
+        Temp place = currentFrame.peek().addLocal();
 
         if (la instanceof type.Int || ra instanceof type.Int) {
             checkType(new type.Int(), la, expr.left.pos);
@@ -531,7 +536,7 @@ public class Semant {
                 if (!notifier.hasError()) {
                     codes.addAll(lr.codes);
                     codes.addAll(rr.codes);
-                    Temp t = Temp.newTemp(currentFrame.peek());
+                    Temp t = currentFrame.peek().addLocal();
                     codes.add(new CallExternTAC(currentFrame.peek(), sym("strcmp"), lr.place, rr.place, null, t));
                     switch (expr.op) {
                         case EQ:
@@ -596,9 +601,9 @@ public class Semant {
             FieldList q = expr.fields;
 
             IntermediateCodeList codes = new IntermediateCodeList();
-            Temp place = Temp.newTemp(currentFrame.peek());
+            Temp place = currentFrame.peek().addLocal();
             if (!notifier.hasError()) {
-                Temp tsize = Temp.newTemp(currentFrame.peek());
+                Temp tsize = currentFrame.peek().addLocal();
                 codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.MUL, new ConstAccess(p.length()), ir.wordLength, tsize));
                 ir.funcTable.put(sym("malloc"));
                 codes.add(new CallExternTAC(currentFrame.peek(), sym("malloc"), tsize, null, null, place));
@@ -692,7 +697,7 @@ public class Semant {
                 if (type == null)
                     notifier.error(vd.type.toString() + " undefined");
                 else {
-                    Temp t = Temp.newTemp(currentFrame.peek());
+                    Temp t = currentFrame.peek().addLocal();
 
                     vt.put(vd.id, new VarEntry(type, t));
                     TranslateResult ir = transExpr(vd.value);
@@ -704,7 +709,7 @@ public class Semant {
                     }
                 }
             } else {
-                Temp t = Temp.newTemp(currentFrame.peek());
+                Temp t = currentFrame.peek().addLocal();
 
                 TranslateResult ir = transExpr(vd.value);
                 type.Type type = ir.type;
@@ -771,13 +776,13 @@ public class Semant {
                     Frame frame = new Frame(Label.newLabel(fd.name.toString()));
                     Temp tResult = null;
                     if (!(result.actual() instanceof type.Void))
-                        tResult = Temp.newTemp(frame);
+                        tResult = frame.addReturnValue();
                     
                     type.Record pp = transTypeFields(fd.params);
                     frame.returnValue = tResult;
                     FuncEntry entry = new FuncEntry(pp, result, frame, false);
                     while (pp != null && !pp.isEmpty()) {
-                        frame.params.add(Temp.newTemp(frame));
+                        frame.addParam();
                         pp = pp.next;
                     }
                     vt.put(fd.name, entry);
@@ -925,7 +930,7 @@ public class Semant {
 
                     if (!notifier.hasError()) {
                         int offset = temp.fieldIndex(fl.id);
-                        Temp to = Temp.newTemp(currentFrame.peek());
+                        Temp to = currentFrame.peek().addLocal();
                         codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.MUL, new ConstAccess(offset), ir.wordLength, to));
                         SimpleAccess sa = convertToSimpleAccess(tr.place, codes);
                         place = new MemAccess(sa, to);
@@ -960,7 +965,7 @@ public class Semant {
                 codes.addAll(tr.codes);
                 codes.addAll(tr2.codes);
                 SimpleAccess sa = convertToSimpleAccess(tr.place, codes);
-                Temp to = Temp.newTemp(currentFrame.peek());
+                Temp to = currentFrame.peek().addLocal();
                 codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.MUL, tr2.place, ir.wordLength, to));
                 place = new MemAccess(sa, to);
             }

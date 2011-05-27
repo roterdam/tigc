@@ -11,7 +11,7 @@ all: bin/Main.class
 
 debug: all bin/tester/SymbolTableTester.class bin/tester/ParserTester.class bin/tester/SemantTester.class bin/tester/Mid.class bin/tester/SimpleLinkedListTester.class bin/tester/GraphTester.class
 
-bin/Main.class: src/Main.java bin/parser/Parser.class bin/scanner/Scanner.class absyn bin/absyn/Printer.class bin/semant/Semant.class bin/notifier/Notifier.class intermediate
+bin/Main.class: src/Main.java bin/parser/Parser.class bin/scanner/Scanner.class absyn bin/absyn/Printer.class bin/semant/Semant.class bin/notifier/Notifier.class intermediate bin/mips32/CodeGen.class
 	$(JC) src/Main.java
 
 bin/tester/SymbolTableTester.class: src/tester/SymbolTableTester.java bin/symbol/Table.class bin/notifier/Notifier.class
@@ -294,6 +294,9 @@ bin/util/Graph.class: src/util/Graph.java
 bin/util/GraphNode.class: src/util/GraphNode.java
 	$(JC) src/util/GraphNode.java
 
+bin/mips32/CodeGen.class: bin/intermediate/Label.class bin/intermediate/Temp.class bin/intermediate/IR.class bin/frame/Frame.class bin/util/Graph.class src/mips32/CodeGen.java
+	$(JC) src/mips32/CodeGen.java
+
 clean:
-	rm -fR src/scanner/Scanner.java src/scanner/Scanner.java~ src/parser/Parser.java src/parser/sym.java bin/Main.class bin/parser bin/scanner bin/absyn bin/symbol bin/tester bin/type bin/semant bin/notifier bin/intermediate bin/arch bin/frame bin/util
+	rm -fR src/scanner/Scanner.java src/scanner/Scanner.java~ src/parser/Parser.java src/parser/sym.java bin/Main.class bin/parser bin/scanner bin/absyn bin/symbol bin/tester bin/type bin/semant bin/notifier bin/intermediate bin/arch bin/frame bin/util bin/mips32
 

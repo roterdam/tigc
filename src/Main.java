@@ -6,6 +6,7 @@ import symbol.*;
 import semant.Semant;
 import java.io.*;
 import intermediate.*;
+import mips32.CodeGen;
 
 public class Main {
     public static void main(String[] args) {
@@ -34,6 +35,8 @@ public class Main {
                     for (IntermediateCode c: ir.codes) {
                         notifier.message(c.toString());
                     }
+
+                    CodeGen cg = new CodeGen(ir);
                 }
             }
             
