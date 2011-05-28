@@ -15,22 +15,22 @@ public class Notifier {
 
     public void error(String message) {
         ++errorCount;
-        println("ERROR " + message);
+        println("ERROR: " + message);
     }
 
     public void error(String message, int line) {
         ++errorCount;
-        println(new Integer(line + 1).toString() + ": ERROR " + message);
+        println(new Integer(line + 1).toString() + ": ERROR: " + message);
     }
 
     public void warning(String message) {
         ++warningCount;
-        println("WARNING " + message);
+        println("WARNING: " + message);
     }
 
     public void warning(String message, int line) {
         ++warningCount;
-        println(new Integer(line + 1).toString() + ": WARNING " + message);
+        println(new Integer(line + 1).toString() + ": WARNING: " + message);
     }
 
     public void message(String info) {

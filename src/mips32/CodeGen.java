@@ -7,6 +7,7 @@ import frame.Frame;
 import notifier.Notifier;
 import regalloc.*;
 import arch.Const;
+import symbol.Symbol;
 
 public class CodeGen {
     static class MipsMemStyle {
@@ -23,7 +24,7 @@ public class CodeGen {
 
     HashMap<Label, ThreeAddressCode> labelMap;
     IR ir;
-    Temp zero, fp, sp, ra;
+    Temp zero, fp, sp, ra, v0, a0, a1;
     int wordLength = 4;
 
     static class SavePlace {
@@ -59,7 +60,14 @@ public class CodeGen {
         fp = ir.globalFrame.addLocal();
         sp = ir.globalFrame.addLocal();
         ra = ir.globalFrame.addLocal();
+        v0 = ir.globalFrame.addLocal();
+        a0 = ir.globalFrame.addLocal();
+        a1 = ir.globalFrame.addLocal();
         callSaves = new ArrayList<SavePlace>();
+    }
+
+    Symbol sym(String s) {
+        return Symbol.symbol(s);
     }
 
     Const processConstAccess(ConstAccess ca) {
@@ -361,6 +369,80 @@ public class CodeGen {
     }
 
     public void generate(InstructionList list, CallExternTAC tac) {
+        if (tac.place == sym("print")) {
+
+            generate(list, new MoveTAC(tac.frame, tac.param1, a0));
+            list.add(Instruction.LI(tac.frame, v0, new Const(4)));
+            list.add(Instruction.SYSCALL(tac.frame, v0, a0, a1, 4));
+
+        } else if (tac.place == sym("printi")) {
+
+            generate(list, new MoveTAC(tac.frame, tac.param1, a0));
+            list.add(Instruction.LI(tac.frame, v0, new Const(1)));
+            list.add(Instruction.SYSCALL(tac.frame, v0, a0, a1, 1));
+
+        } else if (tac.place == sym("flush")) {
+
+        } else if (tac.place == sym("getchar")) {
+
+            generate(list, new CallExternTAC(tac.frame, sym("malloc"), new ConstAccess(2),
+                    null, null, a0));
+            list.add(Instruction.LI(tac.frame, a1, new Const(2)));
+            list.add(Instruction.LI(tac.frame, v0, new Const(8)));
+            list.add(Instruction.SYSCALL(tac.frame, v0, a0, a1, 8));
+
+        } else if (tac.place == sym("ord")) {
+
+            Label j = Label.newLabel();
+            Temp t1 = toTemp(list, tac.frame, tac.param1), t2 = tac.frame.addLocal();
+            list.add(Instruction.LB(tac.frame, t2, t1, new Const(0)));
+            list.add(Instruction.BEQ(tac.frame, t2, zero, j));
+            generate(list, new MoveTAC(tac.frame, t2, (AssignableAccess) tac.dst));
+            list.add(j);
+            generate(list, new MoveTAC(tac.frame, new ConstAccess(0), (AssignableAccess) tac.dst));
+
+        } else if (tac.place == sym("chr")) {
+
+            Temp t1 = tac.frame.addLocal(), t2 = toTemp(list, tac.frame, tac.param1);
+            generate(list, new CallExternTAC(tac.frame, sym("malloc"), new ConstAccess(2),
+                        null, null, t1));
+            list.add(Instruction.SB(tac.frame, t2, t1, new Const(0)));
+            list.add(Instruction.SB(tac.frame, zero, t1, new Const(0)));
+            generate(list, new MoveTAC(tac.frame, t1, (AssignableAccess) tac.dst));
+
+        } else if (tac.place == sym("size")) {
+
+            Temp res = tac.frame.addLocal(),
+                 chr = tac.frame.addLocal(),
+                 p = tac.frame.addLocal();
+            Label start = Label.newLabel(), end = Label.newLabel();
+            generate(list, new MoveTAC(tac.frame, tac.param1, p));
+            list.add(Instruction.MOVE(tac.frame, res, zero));
+            list.add(start);
+            list.add(Instruction.LB(tac.frame, chr, p, new Const(0)));
+            list.add(Instruction.BEQ(tac.frame, chr, zero, end));
+            list.add(Instruction.ADDI(tac.frame, p, p, new Const(1)));
+            list.add(Instruction.ADDI(tac.frame, res, res, new Const(1)));
+            list.add(Instruction.J(tac.frame, start));
+            list.add(end);
+            generate(list, new MoveTAC(tac.frame, res, (AssignableAccess) tac.dst));
+
+        } else if (tac.place == sym("substring")) {
+
+        } else if (tac.place == sym("concat")) {
+
+        } else if (tac.place == sym("not")) {
+        } else if (tac.place == sym("exit")) {
+        } else if (tac.place == sym("malloc")) {
+
+            generate(list, new MoveTAC(tac.frame, tac.param1, a0));
+            list.add(Instruction.LI(tac.frame, v0, new Const(9)));
+            list.add(Instruction.SYSCALL(tac.frame, v0, a0, a1, 9));
+            generate(list, new MoveTAC(tac.frame, v0, (AssignableAccess) tac.dst));
+
+        } else if (tac.place == sym("strcmp")) {
+        } else
+            throw new Error("Unknown extern call \"" + tac.place.toString() + "\"");
     }
 
     public void generate(InstructionList list, ReturnTAC tac) {

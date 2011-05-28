@@ -4,6 +4,7 @@ import regalloc.TempMap;
 import frame.Frame;
 import intermediate.*;
 import arch.Const;
+import java.util.*;
 
 public class Instruction {
     Frame frame;
@@ -17,6 +18,9 @@ public class Instruction {
     // when it is executed, $fp points to caller's frame start and $sp points to callee's frame start
     boolean special = false;
 
+    ArrayList<Temp> syscallUse = new ArrayList<Temp>();
+    Temp syscallDef = null;
+
     static enum Type {
         MOVE, ADD, ADDI,
             SUB, MUL,
@@ -28,7 +32,7 @@ public class Instruction {
             SW, SB, J,
             JAL, JR,
             BEQ, BNE,
-            LI, LA
+            LI, LA, SYSCALL
     }
 
     public Instruction(Frame frame, Type type, Temp dst, Temp src1, Temp src2, Const imm, Label target) {
@@ -101,8 +105,16 @@ public class Instruction {
         return new Instruction(frame, Type.LW, dst, base, null, offset, null);
     }
 
+    public static Instruction LB(Frame frame, Temp dst, Temp base, Const offset) {
+        return new Instruction(frame, Type.LB, dst, base, null, offset, null);
+    }
+
     public static Instruction SW(Frame frame, Temp value, Temp base, Const offset) {
         return new Instruction(frame, Type.SW, null, base, value, offset, null);
+    }
+
+    public static Instruction SB(Frame frame, Temp value, Temp base, Const offset) {
+        return new Instruction(frame, Type.SB, null, base, value, offset, null);
     }
 
     public static Instruction J(Frame frame, Label target) {
@@ -117,12 +129,48 @@ public class Instruction {
         return new Instruction(frame, Type.JR, null, src, null, null, null);
     }
 
+    public static Instruction BEQ(Frame frame, Temp src1, Temp src2, Label target) {
+        return new Instruction(frame, Type.BEQ, null, src1, src2, null, target);
+    }
+
+    public static Instruction BNE(Frame frame, Temp src1, Temp src2, Label target) {
+        return new Instruction(frame, Type.BNE, null, src1, src2, null, target);
+    }
+
     public static Instruction LI(Frame frame, Temp dst, Const imm) {
         return new Instruction(frame, Type.LI, dst, null, null, imm, null);
     }
 
     public static Instruction LA(Frame frame, Temp dst, String name) {
         return new Instruction(frame, Type.LA, dst, null, null, new Const(name), null);
+    }
+
+    public static Instruction SYSCALL(Frame frame, Temp v0, Temp a0, Temp a1, int id) {
+        Instruction ret = new Instruction(frame, Type.SYSCALL, null, null, null, null, null);
+        ret.syscallUse.add(v0);
+        switch (id) {
+            case 1:
+                ret.syscallUse.add(a0);
+                break;
+
+            case 4:
+                ret.syscallUse.add(a0);
+                break;
+
+            case 5:
+                ret.syscallDef = v0;
+                break;
+
+            case 8:
+                ret.syscallUse.add(a0);
+                ret.syscallUse.add(a1);
+                break;
+
+            case 9:
+                ret.syscallUse.add(a0);
+                ret.syscallDef = v0;
+        }
+        return ret;
     }
 
     public String toString(TempMap map) {
@@ -213,11 +261,11 @@ public class Instruction {
                 break;
 
             case BEQ:
-                s = "beq " + map.get(src1).toString() + ", " + map.get(src2).toString() + ", " + imm.toString();
+                s = "beq " + map.get(src1).toString() + ", " + map.get(src2).toString() + ", " + target.toString();
                 break;
 
             case BNE:
-                s = "bne " + map.get(src1).toString() + ", " + map.get(src2).toString() + ", " + imm.toString();
+                s = "bne " + map.get(src1).toString() + ", " + map.get(src2).toString() + ", " + target.toString();
                 break;
 
             case LI:
@@ -227,6 +275,9 @@ public class Instruction {
             case LA:
                 s = "la " + map.get(dst).toString() + ", " + imm.toString();
                 break;
+
+            case SYSCALL:
+                s = "syscall";
         }
         return s;
     }

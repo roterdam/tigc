@@ -297,7 +297,7 @@ bin/util/Graph.class: src/util/Graph.java
 bin/util/GraphNode.class: src/util/GraphNode.java
 	$(JC) src/util/GraphNode.java
 
-bin/mips32/CodeGen.class: bin/notifier/Notifier.class bin/intermediate/Label.class bin/intermediate/Temp.class bin/intermediate/IR.class bin/frame/Frame.class bin/util/Graph.class bin/mips32/InstructionList.class bin/intermediate/ThreeAddressCode.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/mips32/Instruction.class bin/arch/Const.class bin/regalloc/TempMap.class src/mips32/CodeGen.java
+bin/mips32/CodeGen.class: bin/notifier/Notifier.class bin/intermediate/Label.class bin/intermediate/Temp.class bin/intermediate/IR.class bin/frame/Frame.class bin/util/Graph.class bin/mips32/InstructionList.class bin/intermediate/ThreeAddressCode.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/mips32/Instruction.class bin/arch/Const.class bin/regalloc/TempMap.class bin/symbol/Symbol.class src/mips32/CodeGen.java
 	$(JC) src/mips32/CodeGen.java
 
 bin/mips32/InstructionList.class: bin/regalloc/TempMap.class bin/mips32/Instruction.class src/mips32/InstructionList.java
