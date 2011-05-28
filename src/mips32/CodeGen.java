@@ -5,34 +5,6 @@ import util.*;
 import java.util.*;
 import frame.Frame;
 
-class Const {
-    int c = 0;
-    String name = "";
-    boolean binded = true;
-
-    public Const(int c) {
-        this.c = c;
-        binded = true;
-    }
-
-    public Const(String name) {
-        this.name = name;
-        binded = false;
-    }
-
-    public void bind(int c) {
-        this.c = c;
-        binded = true;
-    }
-
-    public String toString() {
-        if (binded)
-            return new Integer(c).toString();
-        else
-            return name;
-    }
-}
-
 public class CodeGen {
     static class MipsMemStyle {
         Temp base;
@@ -84,7 +56,7 @@ public class CodeGen {
     MipsMemStyle processMemAccess(InstructionList list, Frame frame, MemAccess ma) {
         if (ma.base instanceof Temp && ma.offset instanceof Temp) {
             Temp t = frame.addLocal();
-            list.add(new Arithmic(frame, Arithmic.Op.ADD, t, (Temp) ma.base, (Temp) ma.offset));
+            list.add(new Instruction(frame, Instruction.Type.ADD, t, (Temp) ma.base, (Temp) ma.offset, null));
             return new MipsMemStyle(t, new Const(0));
         } else if (ma.base instanceof Temp && ma.offset instanceof ConstAccess) {
             return new MipsMemStyle((Temp) ma.base, processConstAccess((ConstAccess) ma.offset));
