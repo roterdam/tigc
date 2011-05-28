@@ -1,6 +1,6 @@
-package mips32;
+package arch;
 
-class Const {
+public class Const {
     int c = 0;
     String name = "";
     boolean binded = true;

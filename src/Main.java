@@ -35,8 +35,12 @@ public class Main {
                     for (IntermediateCode c: ir.codes) {
                         notifier.message(c.toString());
                     }
+                    notifier.message("");
+                    notifier.message("");
 
-                    CodeGen cg = new CodeGen(ir);
+                    CodeGen cg = new CodeGen(notifier, ir);
+                    cg.generate();
+
                 }
             }
             

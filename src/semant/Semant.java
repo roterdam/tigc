@@ -97,7 +97,7 @@ public class Semant {
     }
 
     public IR translate(absyn.Expr expr) {
-        Frame globalFrame = new Frame(Label.newLabel("main"));
+        Frame globalFrame = new Frame(Label.newLabel("main"), null);
         ir = new IR(globalFrame);
         currentFrame.push(globalFrame);
         breakStack.push(null);
@@ -242,11 +242,14 @@ public class Semant {
         type.Record p = func.params;
         ExprList q = expr.args;
 
+        Temp ret = null;
+        if (!(func.result.actual() instanceof type.Void))
+            ret = currentFrame.peek().addLocal();
+
         IntermediateCodeList codes = new IntermediateCodeList(),
                              codesParam = new IntermediateCodeList();
-        Iterator<Temp> iter = func.isExtern ? null : func.frame.params.iterator();
         ArrayList<Access> actuals = new ArrayList<Access>();
-        ThreeAddressCode call = func.isExtern ? null : new CallTAC(currentFrame.peek(), func.frame.place);
+        ThreeAddressCode call = func.isExtern ? null : new CallTAC(currentFrame.peek(), func.frame.place, ret);
         while (p != null && !p.isEmpty() && q != null) {
             TranslateResult tq = transExpr(q.expr);
             checkType(p.type, tq.type, q.expr.pos);
@@ -255,18 +258,14 @@ public class Semant {
             if (!notifier.hasError())
                 codes.addAll(tq.codes);
             if (!func.isExtern && !notifier.hasError())
-                ((CallTAC) call).addParam(tq.place, iter.next());
+                ((CallTAC) call).addParam(tq.place);
 
             p = p.next;
             q = q.next;
         }
 
-        Temp ret = null;
         if (!notifier.hasError()) {
             if (func.isExtern) {
-                if (!(func.result.actual() instanceof type.Void))
-                    ret = currentFrame.peek().addLocal();
-
                 ir.funcTable.put(expr.func);
                 switch (actuals.size()) {
                     case 0:
@@ -291,15 +290,6 @@ public class Semant {
                 }
             } else {
                 codes.add(call);
-
-                Label retLabel = Label.newLabel();
-                func.frame.returns.add(retLabel);
-                codes.add(retLabel);
-
-                if (func.frame.returnValue != null) {
-                    ret = currentFrame.peek().addLocal();
-                    codes.add(new MoveTAC(currentFrame.peek(), func.frame.returnValue, ret));
-                }
             }
         }
 
@@ -773,7 +763,10 @@ public class Semant {
                         result = new type.Int();
                     }
 
-                    Frame frame = new Frame(Label.newLabel(fd.name.toString()));
+                    if (ir.displays.size() < currentFrame.size())
+                        ir.displays.add(ir.globalFrame.addLocal());
+
+                    Frame frame = new Frame(Label.newLabel(fd.name.toString()), ir.displays.get(currentFrame.size() - 1));
                     Temp tResult = null;
                     if (!(result.actual() instanceof type.Void))
                         tResult = frame.addReturnValue();

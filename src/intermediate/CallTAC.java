@@ -5,39 +5,33 @@ import java.util.ArrayList;
 
 public class CallTAC extends ThreeAddressCode {
     public Label place;
-    public ArrayList<Param> params = new ArrayList<Param>();
+    public ArrayList<Access> params = new ArrayList<Access>();
+    public Temp actualReturn;
 
-    public static class Param {
-        public Access actual;
-        public Temp formal;
-
-        public Param(Access actual, Temp formal) {
-            this.actual = actual;
-            this.formal = formal;
-        }
-    }
-
-    public CallTAC(Frame frame, Label place) {
+    public CallTAC(Frame frame, Label place, Temp actualReturn) {
         super(frame);
         this.op1 = null;
         this.op2 = null;
         this.dst = null;
         this.place = place;
+        this.actualReturn = actualReturn;
     }
 
-    public void addParam(Access actual, Temp formal) {
-        params.add(new Param(actual, formal));
+    public void addParam(Access actual) {
+        params.add(actual);
     }
 
     public String toString() {
         String s = "call " + place.toString() + "(";
         String ss = "";
-        for (Param p: params) {
+        for (Access a: params) {
             if (ss.length() > 0)
                 ss += ", ";
-            ss += p.formal.toString() + " <= " + p.actual.toString();
+            ss += a.toString();
         }
         s += ss + ")";
+        if (actualReturn != null)
+            s = actualReturn.toString() + " := " + s;
         return s;
     }
 }

@@ -4,7 +4,7 @@ import frame.Frame;
 
 public class UniOpTAC extends OpTAC {
     public enum UniOp {
-        NOT, NEG
+        NEG
     }
 
     public UniOp op;
@@ -20,10 +20,6 @@ public class UniOpTAC extends OpTAC {
     public String toString() {
         String s = "";
         switch (op) {
-            case NOT:
-                s = "~";
-                break;
-
             case NEG:
                 s = "-";
                 break;

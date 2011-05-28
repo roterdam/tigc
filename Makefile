@@ -167,7 +167,7 @@ bin/intermediate/AssignableAccess.class: bin/intermediate/Access.class src/inter
 bin/intermediate/SimpleAccess.class: bin/intermediate/Access.class src/intermediate/SimpleAccess.java
 	$(JC) src/intermediate/SimpleAccess.java
 
-bin/intermediate/Temp.class: bin/intermediate/AssignableAccess.class bin/intermediate/SimpleAccess.class src/intermediate/Temp.java src/frame/Frame.java
+bin/intermediate/Temp.class: bin/arch/Const.class bin/intermediate/AssignableAccess.class bin/intermediate/SimpleAccess.class src/intermediate/Temp.java src/frame/Frame.java
 	$(JC) src/intermediate/Temp.java src/frame/Frame.java
 
 bin/intermediate/ConstAccess.class: bin/intermediate/SimpleAccess.class src/intermediate/ConstAccess.java
@@ -222,6 +222,9 @@ bin/arch/StringTable.class: bin/intermediate/UnknownConstAccess.class src/arch/S
 bin/arch/ExternFunctionTable.class: bin/symbol/Symbol.class src/arch/ExternFunctionTable.java
 	$(JC) src/arch/ExternFunctionTable.java
 
+bin/arch/Const.class: src/arch/Const.java
+	$(JC) src/arch/Const.java
+
 
 bin/parser/sym.class: src/parser/sym.java
 	$(JC) src/parser/sym.java
@@ -245,7 +248,7 @@ src/parser/sym.java: doc/parser.cup
 	cd src/parser; java -jar ../../lib/java-cup-11a.jar -parser Parser ../../doc/parser.cup
 
 
-bin/frame/Frame.class: bin/intermediate/Label.class bin/intermediate/Temp.class src/frame/Frame.java
+bin/frame/Frame.class: bin/arch/Const.class bin/intermediate/Label.class bin/intermediate/Temp.class src/frame/Frame.java
 	$(JC) src/frame/Frame.java
 
 
@@ -294,17 +297,14 @@ bin/util/Graph.class: src/util/Graph.java
 bin/util/GraphNode.class: src/util/GraphNode.java
 	$(JC) src/util/GraphNode.java
 
-bin/mips32/CodeGen.class: bin/intermediate/Label.class bin/intermediate/Temp.class bin/intermediate/IR.class bin/frame/Frame.class bin/util/Graph.class bin/mips32/InstructionList.class bin/intermediate/ThreeAddressCode.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/mips32/Instruction.class bin/mips32/Const.class src/mips32/CodeGen.java
+bin/mips32/CodeGen.class: bin/notifier/Notifier.class bin/intermediate/Label.class bin/intermediate/Temp.class bin/intermediate/IR.class bin/frame/Frame.class bin/util/Graph.class bin/mips32/InstructionList.class bin/intermediate/ThreeAddressCode.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/mips32/Instruction.class bin/arch/Const.class bin/regalloc/TempMap.class src/mips32/CodeGen.java
 	$(JC) src/mips32/CodeGen.java
 
 bin/mips32/InstructionList.class: bin/regalloc/TempMap.class bin/mips32/Instruction.class src/mips32/InstructionList.java
 	$(JC) src/mips32/InstructionList.java
 
-bin/mips32/Instruction.class: bin/mips32/Const.class bin/frame/Frame.class bin/regalloc/TempMap.class src/mips32/Instruction.java
+bin/mips32/Instruction.class: bin/arch/Const.class bin/frame/Frame.class bin/regalloc/TempMap.class src/mips32/Instruction.java
 	$(JC) src/mips32/Instruction.java
-
-bin/mips32/Const.class: src/mips32/Const.java
-	$(JC) src/mips32/Const.java
 
 bin/regalloc/TempMap.class: bin/intermediate/Temp.class src/regalloc/TempMap.java
 	$(JC) src/regalloc/TempMap.java

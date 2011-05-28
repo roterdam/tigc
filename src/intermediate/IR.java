@@ -13,6 +13,7 @@ public class IR {
     public Frame globalFrame = null;
     public ArrayList funcFrames = new ArrayList<Frame>();
     public Graph<Frame> callingGraph = new Graph<Frame>();
+    public ArrayList<Temp> displays = new ArrayList<Temp>();
 
     public IR(Frame frame) {
         globalFrame = frame;

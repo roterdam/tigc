@@ -1,26 +1,80 @@
 package mips32;
 
-import util.*;
 import intermediate.*;
+import java.util.*;
+import regalloc.*;
 
 class LabeledInstruction {
     Label label;
     Instruction instruction;
+    LabeledInstruction next;
 
-    public LabeledInstruction(Label label, Instruction instruction) {
+    public LabeledInstruction(Label label, Instruction instruction, LabeledInstruction next) {
         this.label = label;
         this.instruction = instruction;
+        this.next = next;
+    }
+
+    public String toString(TempMap map) {
+        String s = "";
+        if (label != null)
+            s += label.toString() + ":";
+        if (instruction != null)
+            s += "\t" + instruction.toString(map);
+        return s;
     }
 }
 
-class InstructionList {
-    SimpleLinkedList<LabeledInstruction> list = new SimpleLinkedList<LabeledInstruction>();
+class InstructionList implements Iterable<LabeledInstruction> {
+    LabeledInstruction head, tail;
 
     public InstructionList() {
+        head = null;
+        tail = null;
     }
 
-    public void add(Instruction ins) {
-        list.add(new LabeledInstruction(null, ins));
+    public LabeledInstruction add(Label label, Instruction ins) {
+        LabeledInstruction r = new LabeledInstruction(label, ins, null);
+        if (head == null) {
+            head = r;
+            tail = head;
+        } else {
+            tail.next = r;
+            tail = tail.next;
+        }
+        return r;
+    }
+
+    public LabeledInstruction add(Instruction ins) {
+        return add(null, ins);
+    }
+
+    public LabeledInstruction add(Label label) {
+        return add(label, null);
+    }
+
+    public LabeledInstruction addPlaceHolder() {
+        return add(null, null);
+    }
+
+    public Iterator<LabeledInstruction> iterator() {
+        return new Iterator<LabeledInstruction>() {
+            LabeledInstruction p = head;
+
+            public boolean hasNext() {
+                return p != null;
+            }
+
+            public LabeledInstruction next() {
+                LabeledInstruction t = p;
+                p = p.next;
+                return t;
+            }
+
+            public void remove() throws UnsupportedOperationException {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }
 
