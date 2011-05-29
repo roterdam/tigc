@@ -225,6 +225,9 @@ bin/arch/ExternFunctionTable.class: bin/symbol/Symbol.class src/arch/ExternFunct
 bin/arch/Const.class: src/arch/Const.java
 	$(JC) src/arch/Const.java
 
+bin/arch/Instruction.class: bin/frame/Frame.class bin/intermediate/Temp.class src/arch/Instruction.java
+	$(JC) src/arch/Instruction.java
+
 
 bin/parser/sym.class: src/parser/sym.java
 	$(JC) src/parser/sym.java
@@ -297,18 +300,27 @@ bin/util/Graph.class: src/util/Graph.java
 bin/util/GraphNode.class: src/util/GraphNode.java
 	$(JC) src/util/GraphNode.java
 
-bin/mips32/CodeGen.class: bin/notifier/Notifier.class bin/intermediate/Label.class bin/intermediate/Temp.class bin/intermediate/IR.class bin/frame/Frame.class bin/util/Graph.class bin/mips32/InstructionList.class bin/intermediate/ThreeAddressCode.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/mips32/Instruction.class bin/arch/Const.class bin/regalloc/TempMap.class bin/symbol/Symbol.class src/mips32/CodeGen.java
+bin/mips32/CodeGen.class: bin/notifier/Notifier.class bin/intermediate/Label.class bin/intermediate/Temp.class bin/intermediate/IR.class bin/frame/Frame.class bin/util/Graph.class bin/mips32/InstructionList.class bin/intermediate/ThreeAddressCode.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/mips32/Instruction.class bin/arch/Const.class bin/regalloc/TempMap.class bin/symbol/Symbol.class bin/flow/FlowGraph.class bin/flow/LifeAnalysis.class src/mips32/CodeGen.java
 	$(JC) src/mips32/CodeGen.java
 
 bin/mips32/InstructionList.class: bin/regalloc/TempMap.class bin/mips32/Instruction.class src/mips32/InstructionList.java
 	$(JC) src/mips32/InstructionList.java
 
-bin/mips32/Instruction.class: bin/arch/Const.class bin/frame/Frame.class bin/regalloc/TempMap.class src/mips32/Instruction.java
+bin/mips32/Instruction.class: bin/arch/Const.class bin/arch/Instruction.class bin/frame/Frame.class bin/regalloc/TempMap.class src/mips32/Instruction.java
 	$(JC) src/mips32/Instruction.java
 
 bin/regalloc/TempMap.class: bin/intermediate/Temp.class src/regalloc/TempMap.java
 	$(JC) src/regalloc/TempMap.java
 
+bin/flow/BasicBlock.class: bin/intermediate/Temp.class bin/intermediate/Label.class bin/arch/Instruction.class src/flow/BasicBlock.java
+	$(JC) src/flow/BasicBlock.java
+
+bin/flow/FlowGraph.class: bin/util/Graph.class bin/flow/BasicBlock.class src/flow/FlowGraph.java
+	$(JC) src/flow/FlowGraph.java
+
+bin/flow/LifeAnalysis.class: bin/flow/FlowGraph.class src/flow/LifeAnalysis.java
+	$(JC) src/flow/LifeAnalysis.java
+
 clean:
-	rm -fR src/scanner/Scanner.java src/scanner/Scanner.java~ src/parser/Parser.java src/parser/sym.java bin/Main.class bin/parser bin/scanner bin/absyn bin/symbol bin/tester bin/type bin/semant bin/notifier bin/intermediate bin/arch bin/frame bin/util bin/mips32 bin/regalloc
+	rm -fR src/scanner/Scanner.java src/scanner/Scanner.java~ src/parser/Parser.java src/parser/sym.java bin/Main.class bin/parser bin/scanner bin/absyn bin/symbol bin/tester bin/type bin/semant bin/notifier bin/intermediate bin/arch bin/frame bin/util bin/mips32 bin/regalloc bin/flow
 

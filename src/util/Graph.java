@@ -97,6 +97,10 @@ public class Graph<NodeType> {
             return ret;
     }
 
+    public Set<NodeType> nodes() {
+        return nodes;
+    }
+
     public int inDegree(NodeType n) {
         return pred(n).size();
     }

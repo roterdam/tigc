@@ -6,8 +6,7 @@ import intermediate.*;
 import arch.Const;
 import java.util.*;
 
-public class Instruction {
-    Frame frame;
+public class Instruction extends arch.Instruction {
 
     Type type;
     Temp dst = null, src1 = null, src2 = null;
@@ -20,6 +19,8 @@ public class Instruction {
 
     ArrayList<Temp> syscallUse = new ArrayList<Temp>();
     Temp syscallDef = null;
+
+    Temp ra = null;
 
     static enum Type {
         MOVE, ADD, ADDI,
@@ -123,8 +124,10 @@ public class Instruction {
         return new Instruction(frame, Type.J, null, null, null, null, target);
     }
 
-    public static Instruction JAL(Frame frame, Label target) {
-        return new Instruction(frame, Type.JAL, null, null, null, null, target);
+    public static Instruction JAL(Frame frame, Label target, Temp ra) {
+        Instruction ins = new Instruction(frame, Type.JAL, null, null, null, null, target);
+        ins.ra = ra;
+        return ins;
     }
 
     public static Instruction JR(Frame frame, Temp src) {
@@ -314,6 +317,48 @@ public class Instruction {
                 s = "syscall";
         }
         return s;
+    }
+
+    public Set<Temp> use() {
+        HashSet<Temp> ret = new HashSet<Temp>();
+        if (type != Type.SYSCALL) {
+            if (src1 != null)
+                ret.add(src1);
+            if (src2 != null)
+                ret.add(src2);
+        } else
+            ret.addAll(syscallUse);
+        return ret;
+    }
+
+    public Set<Temp> def() {
+        HashSet<Temp> ret = new HashSet<Temp>();
+        if (type == Type.SYSCALL) {
+            if (syscallDef != null)
+                ret.add(syscallDef);
+        } else if (type == Type.JAL)
+            ret.add(ra);
+        else if (dst != null)
+            ret.add(dst);
+
+        return ret;
+    }
+
+    public boolean isJump() {
+        if (type == Type.J || type == Type.JR || type == Type.JAL
+                || isBranch())
+            return true;
+        else
+            return false;
+    }
+
+    public boolean isBranch() {
+        if (type == Type.BEQ || type == Type.BNE
+                || type == Type.BGT || type == Type.BGE
+                || type == Type.BLT || type == Type.BLE)
+            return true;
+        else
+            return false;
     }
 }
 

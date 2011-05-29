@@ -8,6 +8,7 @@ import notifier.Notifier;
 import regalloc.*;
 import arch.Const;
 import symbol.Symbol;
+import flow.*;
 
 public class CodeGen {
     static class MipsMemStyle {
@@ -115,6 +116,34 @@ public class CodeGen {
                 generate(list, ic.tac);
             }
         }
+
+        FlowGraph graph = buildFlowGraph(list);
+        for (BasicBlock b: graph.nodes()) {
+            notifier.message("Basic block " + new Integer(b.hashCode()).toString());
+            notifier.message("Successors:");
+            for (BasicBlock n: graph.succ(b))
+                notifier.message(new Integer(n.hashCode()).toString());
+            notifier.message("Predecessors:");
+            for (BasicBlock n: graph.pred(b))
+                notifier.message(new Integer(n.hashCode()).toString());
+
+            notifier.message("Codes:");
+            TempMap map = new TempMap();
+            for (arch.Instruction ins: b.list) {
+                notifier.message(((Instruction) ins).toString(map));
+            }
+
+            notifier.message("Use:");
+            for (Temp t: b.use())
+                notifier.message(t.toString());
+
+            notifier.message("Def:");
+            for (Temp t: b.def())
+                notifier.message(t.toString());
+
+            notifier.message("");
+        }
+
         TempMap map = new TempMap();
         for (LabeledInstruction ins: list) {
             notifier.message(ins.toString(map));
@@ -349,7 +378,7 @@ public class CodeGen {
         list.add(Instruction.MOVE(tac.frame, fp, sp));
         list.add(Instruction.ADDI(callee, sp, sp, callee.minusFrameSize));
 
-        list.add(Instruction.JAL(callee, tac.place));
+        list.add(Instruction.JAL(callee, tac.place, ra));
 
         list.add(retLabel);
         list.add(Instruction.ADDI(callee, sp, sp, callee.frameSize));
@@ -607,5 +636,59 @@ public class CodeGen {
         }
     }
 
+    public FlowGraph buildFlowGraph(InstructionList list) {
+        HashMap<Label, BasicBlock> labelMap = new HashMap<Label, BasicBlock>();
+        HashMap<BasicBlock, BasicBlock> next = new HashMap<BasicBlock, BasicBlock>();
+        BasicBlock current = new BasicBlock(), t = null;
+        ArrayList<Label> labels = new ArrayList<Label>();
+        FlowGraph graph = new FlowGraph();
+        ArrayList<BasicBlock> blocks = new ArrayList<BasicBlock>();
+
+        for (LabeledInstruction i: list) {
+            if (i.label != null) {
+                if (!current.list.isEmpty()) {
+                    blocks.add(current);
+                    graph.add(current);
+                    t = new BasicBlock();
+                    next.put(current, t);
+                    current = t;
+                }
+
+                current.add(i.label);
+                labelMap.put(i.label, current);
+            }
+            if (i.instruction != null) {
+                current.add(i.instruction);
+                if (i.instruction.isJump()) {
+                    blocks.add(current);
+                    graph.add(current);
+                    t = new BasicBlock();
+                    next.put(current, t);
+                    current = t;
+                }
+            }
+        }
+        blocks.add(current);
+        graph.add(current);
+
+        for (BasicBlock b: blocks) {
+            if (b.list.isEmpty() || !b.list.getLast().isJump()) {
+                if (next.containsKey(b))
+                    graph.addEdge(b, next.get(b));
+            } else {
+                Instruction ins = (Instruction) b.list.getLast();
+                if (ins.type == Instruction.Type.JR) {
+                    for (Label p: ins.frame.returns)
+                        graph.addEdge(b, labelMap.get(p));
+                } else {
+                    graph.addEdge(b, labelMap.get(ins.target));
+                    if (ins.isBranch() && next.containsKey(b))
+                        graph.addEdge(b, next.get(b));
+                }
+            }
+        }
+
+        return graph;
+    }
 }
 
