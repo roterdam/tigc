@@ -118,6 +118,7 @@ public class CodeGen {
         }
 
         FlowGraph graph = buildFlowGraph(list);
+        LifeAnalysis life = new LifeAnalysis(graph);
         for (BasicBlock b: graph.nodes()) {
             notifier.message("Basic block " + new Integer(b.hashCode()).toString());
             notifier.message("Successors:");
@@ -141,13 +142,24 @@ public class CodeGen {
             for (Temp t: b.def())
                 notifier.message(t.toString());
 
+            notifier.message("In:");
+            for (Temp t: life.in(b))
+                notifier.message(t.toString());
+
+            notifier.message("Out:");
+            for (Temp t: life.out(b))
+                notifier.message(t.toString());
+
+
             notifier.message("");
         }
 
-        TempMap map = new TempMap();
+        /*TempMap map = new TempMap();
         for (LabeledInstruction ins: list) {
             notifier.message(ins.toString(map));
-        }
+        }*/
+
+
         return list;
     }
 

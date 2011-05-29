@@ -10,7 +10,7 @@ public class Graph<NodeType> {
     public Graph() {
     }
 
-    public boolean inGraph(NodeType n) {
+    public boolean hasNode(NodeType n) {
         return nodes.contains(n);
     }
 
@@ -19,9 +19,9 @@ public class Graph<NodeType> {
     }
 
     public void addDirectedEdge(NodeType u, NodeType v) {
-        if (!inGraph(u))
+        if (!hasNode(u))
             addNode(u);
-        if (!inGraph(v))
+        if (!hasNode(v))
             addNode(v);
         if (!succs.containsKey(u))
             succs.put(u, new HashSet<NodeType>());
@@ -107,6 +107,22 @@ public class Graph<NodeType> {
 
     public int outDegree(NodeType n) {
         return succ(n).size();
+    }
+
+    public Set<NodeType> heads() {
+        Set<NodeType> ret = new HashSet<NodeType>();
+        for (NodeType n: nodes)
+            if (inDegree(n) == 0)
+                ret.add(n);
+        return ret;
+    }
+
+    public Set<NodeType> tails() {
+        Set<NodeType> ret = new HashSet<NodeType>();
+        for (NodeType n: nodes)
+            if (outDegree(n) == 0)
+                ret.add(n);
+        return ret;
     }
 
     Set<NodeType> visited;

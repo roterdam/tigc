@@ -18,6 +18,18 @@ public class FlowGraph {
         return graph.nodes();
     }
 
+    public Set<BasicBlock> heads() {
+        return graph.heads();
+    }
+
+    public Set<BasicBlock> tails() {
+        return graph.tails();
+    }
+
+    public boolean has(BasicBlock b) {
+        return graph.hasNode(b);
+    }
+
     public Set<BasicBlock> pred(BasicBlock b) {
         return graph.pred(b);
     }
