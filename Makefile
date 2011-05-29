@@ -318,7 +318,7 @@ bin/flow/BasicBlock.class: bin/intermediate/Temp.class bin/intermediate/Label.cl
 bin/flow/FlowGraph.class: bin/util/Graph.class bin/flow/BasicBlock.class src/flow/FlowGraph.java
 	$(JC) src/flow/FlowGraph.java
 
-bin/flow/LifeAnalysis.class: bin/util/Graph.class bin/intermediate/Temp.class bin/flow/FlowGraph.class src/flow/LifeAnalysis.java
+bin/flow/LifeAnalysis.class: bin/util/Graph.class bin/arch/Instruction.class bin/intermediate/Temp.class bin/flow/FlowGraph.class src/flow/LifeAnalysis.java
 	$(JC) src/flow/LifeAnalysis.java
 
 clean:

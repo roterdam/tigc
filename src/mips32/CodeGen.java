@@ -119,7 +119,7 @@ public class CodeGen {
 
         FlowGraph graph = buildFlowGraph(list);
         LifeAnalysis life = new LifeAnalysis(graph);
-        for (BasicBlock b: graph.nodes()) {
+        /*for (BasicBlock b: graph.nodes()) {
             notifier.message("Basic block " + new Integer(b.hashCode()).toString());
             notifier.message("Successors:");
             for (BasicBlock n: graph.succ(b))
@@ -152,14 +152,71 @@ public class CodeGen {
 
 
             notifier.message("");
-        }
-
-        /*TempMap map = new TempMap();
-        for (LabeledInstruction ins: list) {
-            notifier.message(ins.toString(map));
         }*/
 
+        for (SavePlace place: callSaves) {
+            LabeledInstruction p = place.save;
+            Instruction i = null;
+            while (p != null) {
+                if (p.instruction != null) {
+                    i = p.instruction;
+                    break;
+                }
+                p = p.next;
+            }
+            if (i != null) {
+                Set<Temp> s = new HashSet<Temp>(life.in(i));
+                ArrayList<Temp> saves = new ArrayList<Temp>();
+                for (Temp t: place.frame.params)
+                    if (s.contains(t))
+                        saves.add(t);
+                for (Temp t: place.frame.locals)
+                    if (s.contains(t))
+                        saves.add(t);
+                if (place.frame.returnValue != null && s.contains(place.frame.returnValue))
+                    saves.add(place.frame.returnValue);
 
+                LabeledInstruction o = place.save.next;
+                LabeledInstruction tail = place.save;
+                int len = saves.size() * wordLength, off = 0;
+
+                tail.next = new LabeledInstruction(null,
+                        Instruction.ADDI(place.frame, sp, sp, new Const(-len)),
+                        null);
+                tail = tail.next;
+                off = len - wordLength;
+                for (Temp t: saves) {
+                    tail.next = new LabeledInstruction(null,
+                            Instruction.SW(place.frame, t, sp, new Const(off)),
+                            null);
+                    tail = tail.next;
+                    off -= wordLength;
+                }
+                tail.next = o;
+
+                o = place.restore.next;
+                tail = place.restore;
+                off = len - wordLength;
+                for (Temp t: saves) {
+                    tail.next = new LabeledInstruction(null,
+                            Instruction.LW(place.frame, t, sp, new Const(off)),
+                            null);
+                    tail = tail.next;
+                    off -= wordLength;
+                }
+                tail.next = new LabeledInstruction(null,
+                        Instruction.ADDI(place.frame, sp, sp, new Const(len)),
+                        null);
+                tail = tail.next;
+                tail.next = o;
+            }
+        }
+
+        TempMap map = new TempMap();
+        for (LabeledInstruction ins: list) {
+            notifier.message(ins.toString(map));
+        }
+        
         return list;
     }
 

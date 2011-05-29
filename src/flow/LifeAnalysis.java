@@ -3,12 +3,15 @@ package flow;
 import util.Graph;
 import java.util.*;
 import intermediate.Temp;
+import arch.Instruction;
 
 public class LifeAnalysis {
     FlowGraph g;
 
-    Map<BasicBlock, HashSet<Temp>> in = new HashMap<BasicBlock, HashSet<Temp>>(),
-        out = new HashMap<BasicBlock, HashSet<Temp>>();
+    Map<BasicBlock, HashSet<Temp>> inBlock = new HashMap<BasicBlock, HashSet<Temp>>(),
+        outBlock = new HashMap<BasicBlock, HashSet<Temp>>();
+    Map<Instruction, HashSet<Temp>> inIns = new HashMap<Instruction, HashSet<Temp>>(),
+        outIns = new HashMap<Instruction, HashSet<Temp>>();
 
     public LifeAnalysis(FlowGraph g) {
         this.g = g;
@@ -16,15 +19,29 @@ public class LifeAnalysis {
     }
 
     public Set<Temp> in(BasicBlock b) {
-        if (g.has(b))
-            return in.get(b);
+        if (inBlock.containsKey(b))
+            return inBlock.get(b);
         else
             return new HashSet<Temp>();
     }
 
     public Set<Temp> out(BasicBlock b) {
-        if (g.has(b))
-            return out.get(b);
+        if (outBlock.containsKey(b))
+            return outBlock.get(b);
+        else
+            return new HashSet<Temp>();
+    }
+
+    public Set<Temp> in(Instruction i) {
+        if (inIns.containsKey(i))
+            return inIns.get(i);
+        else
+            return new HashSet<Temp>();
+    }
+
+    public Set<Temp> out(Instruction i) {
+        if (outIns.containsKey(i))
+            return outIns.get(i);
         else
             return new HashSet<Temp>();
     }
@@ -49,26 +66,38 @@ public class LifeAnalysis {
             explore(b, visited, blocks);
         for (BasicBlock b: nodes) {
             explore(b, visited, blocks);
-            in.put(b, new HashSet<Temp>());
-            out.put(b, new HashSet<Temp>());
+            inBlock.put(b, new HashSet<Temp>());
+            outBlock.put(b, new HashSet<Temp>());
         }
 
-        int time = 0;
         boolean change = false;
         do {
             change = false;
             for (BasicBlock b: blocks) {
                 for (BasicBlock n: g.succ(b))
-                    if (out.get(b).addAll(in.get(n)))
+                    if (outBlock.get(b).addAll(inBlock.get(n)))
                         change = true;
                 
-                HashSet<Temp> t = new HashSet<Temp>(out.get(b));
+                HashSet<Temp> t = new HashSet<Temp>(outBlock.get(b));
                 t.removeAll(b.def());
                 t.addAll(b.use());
-                in.put(b, t);
+                inBlock.put(b, t);
             }
-            ++time;
         } while (change);
+
+        for (BasicBlock b: blocks) {
+            HashSet<Temp> current = new HashSet<Temp> (outBlock.get(b));
+
+            Iterator<Instruction> iter = b.list.descendingIterator();
+            Instruction ins = null;
+            while (iter.hasNext()) {
+                ins = iter.next();
+                outIns.put(ins, current);
+                current.removeAll(ins.def());
+                current.addAll(ins.use());
+                inIns.put(ins, current);
+            }
+        }
     }
 }
 
