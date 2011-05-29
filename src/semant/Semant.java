@@ -290,13 +290,12 @@ public class Semant {
                 }
             } else {
                 codes.add(call);
+                ir.callingGraph.addEdge(currentFrame.peek(), func.frame);
             }
         }
 
         if ((p != null && !p.isEmpty()) || q != null)
             notifier.error("Function param number mismatch", expr.pos);
-
-        ir.callingGraph.addEdge(currentFrame.peek(), func.frame);
 
         return new TranslateResult(codes, func.result, ret);
     }

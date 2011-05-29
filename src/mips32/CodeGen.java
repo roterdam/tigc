@@ -339,7 +339,7 @@ public class CodeGen {
         list.add(Instruction.ADDI(tac.frame, sp, sp, new Const(-wordLength)));
 
         Iterator<Access> iter = tac.params.iterator();
-        for (Temp t: tac.frame.params)
+        for (Temp t: callee.params)
             addSpecialInstruction(list, tac.frame, t, iter.next());
 
         list.add(Instruction.SW(tac.frame, fp, sp, new Const(0)));
@@ -393,22 +393,32 @@ public class CodeGen {
 
         } else if (tac.place == sym("ord")) {
 
-            Label j = Label.newLabel();
+            Label j = Label.newLabel(), exit = Label.newLabel();
             Temp t1 = toTemp(list, tac.frame, tac.param1), t2 = tac.frame.addLocal();
             list.add(Instruction.LB(tac.frame, t2, t1, new Const(0)));
             list.add(Instruction.BEQ(tac.frame, t2, zero, j));
             generate(list, new MoveTAC(tac.frame, t2, (AssignableAccess) tac.dst));
+            list.add(Instruction.J(tac.frame, exit));
             list.add(j);
-            generate(list, new MoveTAC(tac.frame, new ConstAccess(0), (AssignableAccess) tac.dst));
+            generate(list, new MoveTAC(tac.frame, new ConstAccess(-1), (AssignableAccess) tac.dst));
+            list.add(exit);
 
         } else if (tac.place == sym("chr")) {
 
-            Temp t1 = tac.frame.addLocal(), t2 = toTemp(list, tac.frame, tac.param1);
+            Label exit = Label.newLabel(), end = Label.newLabel();
+            Temp t1 = tac.frame.addLocal(), t2 = toTemp(list, tac.frame, tac.param1), t255 = tac.frame.addLocal();
+            list.add(Instruction.LI(tac.frame, t255, new Const(255)));
+            list.add(Instruction.BGT(tac.frame, t2, t255, exit));
+            list.add(Instruction.BLT(tac.frame, t2, zero, exit));
             generate(list, new CallExternTAC(tac.frame, sym("malloc"), new ConstAccess(2),
                         null, null, t1));
             list.add(Instruction.SB(tac.frame, t2, t1, new Const(0)));
             list.add(Instruction.SB(tac.frame, zero, t1, new Const(0)));
             generate(list, new MoveTAC(tac.frame, t1, (AssignableAccess) tac.dst));
+            list.add(Instruction.J(tac.frame, exit));
+            list.add(exit);
+            generate(list, new CallExternTAC(tac.frame, sym("exit"), new ConstAccess(0), null, null, null));
+            list.add(end);
 
         } else if (tac.place == sym("size")) {
 
@@ -428,11 +438,88 @@ public class CodeGen {
             generate(list, new MoveTAC(tac.frame, res, (AssignableAccess) tac.dst));
 
         } else if (tac.place == sym("substring")) {
+            
+            Temp res = tac.frame.addLocal(),
+                 p = tac.frame.addLocal(),
+                 q = tac.frame.addLocal(),
+                 size = tac.frame.addLocal(),
+                 size1 = tac.frame.addLocal(),
+                 t = tac.frame.addLocal();
+            Label begin = Label.newLabel(), exit = Label.newLabel();
+
+            generate(list, new MoveTAC(tac.frame, tac.param3, size));
+            list.add(Instruction.ADDI(tac.frame, size1, size, new Const(1)));
+            generate(list, new CallExternTAC(tac.frame, sym("malloc"), size1, null, null, res));
+            generate(list, new BinOpTAC(tac.frame, BinOpTAC.BinOp.ADD, tac.param1, tac.param2, p));
+            list.add(Instruction.MOVE(tac.frame, q, res));
+
+            list.add(begin);
+            list.add(Instruction.BEQ(tac.frame, size, zero, exit));
+            list.add(Instruction.LB(tac.frame, t, p, new Const(0)));
+            list.add(Instruction.BEQ(tac.frame, t, zero, exit));
+            list.add(Instruction.SB(tac.frame, t, q, new Const(0)));
+            list.add(Instruction.ADDI(tac.frame, q, q, new Const(1)));
+            list.add(Instruction.ADDI(tac.frame, p, p, new Const(1)));
+            list.add(Instruction.ADDI(tac.frame, size, size, new Const(-1)));
+            list.add(Instruction.J(tac.frame, begin));
+
+            list.add(exit);
+            list.add(Instruction.SB(tac.frame, zero, q, new Const(0)));
+            generate(list, new MoveTAC(tac.frame, res, (AssignableAccess) tac.dst));
 
         } else if (tac.place == sym("concat")) {
 
+            Temp s1 = tac.frame.addLocal(), s2 = tac.frame.addLocal(),
+                 size = tac.frame.addLocal(), res = tac.frame.addLocal(),
+                 p = tac.frame.addLocal(), q = tac.frame.addLocal(),
+                 b1 = toTemp(list, tac.frame, tac.param1), b2 = toTemp(list, tac.frame, tac.param2),
+                 t = tac.frame.addLocal();
+            Label begin1 = Label.newLabel(), end1 = Label.newLabel(),
+                  begin2 = Label.newLabel(), end2 = Label.newLabel();
+
+            generate(list, new CallExternTAC(tac.frame, sym("size"), b1, null, null, s1));
+            generate(list, new CallExternTAC(tac.frame, sym("size"), b2, null, null, s2));
+            list.add(Instruction.ADD(tac.frame, size, s1, s2));
+            list.add(Instruction.ADDI(tac.frame, size, size, new Const(1)));
+            generate(list, new CallExternTAC(tac.frame, sym("malloc"), size, null, null, res));
+            list.add(Instruction.MOVE(tac.frame, p, b1));
+            list.add(Instruction.MOVE(tac.frame, q, res));
+
+            list.add(begin1);
+            list.add(Instruction.LB(tac.frame, t, p, new Const(0)));
+            list.add(Instruction.BEQ(tac.frame, t, zero, end1));
+            list.add(Instruction.SB(tac.frame, t, q, new Const(0)));
+            list.add(Instruction.ADDI(tac.frame, p, p, new Const(1)));
+            list.add(Instruction.ADDI(tac.frame, q, q, new Const(1)));
+            list.add(Instruction.J(tac.frame, begin1));
+
+            list.add(end1);
+            list.add(Instruction.MOVE(tac.frame, p, b2));
+
+            list.add(begin2);
+            list.add(Instruction.LB(tac.frame, t, p, new Const(0)));
+            list.add(Instruction.BEQ(tac.frame, t, zero, end2));
+            list.add(Instruction.SB(tac.frame, t, q, new Const(0)));
+            list.add(Instruction.ADDI(tac.frame, p, p, new Const(1)));
+            list.add(Instruction.ADDI(tac.frame, q, q, new Const(1)));
+            list.add(Instruction.J(tac.frame, begin2));
+
+            list.add(end2);
+            list.add(Instruction.SB(tac.frame, zero, q, new Const(0)));
+            generate(list, new MoveTAC(tac.frame, res, (AssignableAccess) tac.dst));
+
         } else if (tac.place == sym("not")) {
+
+            Temp t = toTemp(list, tac.frame, tac.param1),
+                 res = tac.frame.addLocal();
+            list.add(Instruction.SEQ(tac.frame, res, t, zero));
+            generate(list, new MoveTAC(tac.frame, res, (AssignableAccess) tac.dst));
+
         } else if (tac.place == sym("exit")) {
+
+            list.add(Instruction.LI(tac.frame, v0, new Const(10)));
+            list.add(Instruction.SYSCALL(tac.frame, v0, a0, a1, 10));
+
         } else if (tac.place == sym("malloc")) {
 
             generate(list, new MoveTAC(tac.frame, tac.param1, a0));
@@ -441,6 +528,43 @@ public class CodeGen {
             generate(list, new MoveTAC(tac.frame, v0, (AssignableAccess) tac.dst));
 
         } else if (tac.place == sym("strcmp")) {
+
+            Temp p1 = tac.frame.addLocal(),
+                 p2 = tac.frame.addLocal(),
+                 t1 = tac.frame.addLocal(),
+                 t2 = tac.frame.addLocal();
+            Label begin = Label.newLabel(),
+                  great = Label.newLabel(),
+                  less = Label.newLabel(),
+                  equal = Label.newLabel(),
+                  end = Label.newLabel();
+
+            generate(list, new MoveTAC(tac.frame, tac.param1, p1));
+            generate(list, new MoveTAC(tac.frame, tac.param2, p2));
+            
+            list.add(begin);
+            list.add(Instruction.LB(tac.frame, t1, p1, new Const(0)));
+            list.add(Instruction.LB(tac.frame, t2, p2, new Const(0)));
+            list.add(Instruction.BGT(tac.frame, t1, t2, great));
+            list.add(Instruction.BLT(tac.frame, t1, t2, less));
+            list.add(Instruction.BEQ(tac.frame, t1, zero, equal));
+            list.add(Instruction.ADDI(tac.frame, p1, p1, new Const(1)));
+            list.add(Instruction.ADDI(tac.frame, p2, p2, new Const(1)));
+            list.add(Instruction.J(tac.frame, begin));
+
+            list.add(great);
+            generate(list, new MoveTAC(tac.frame, new ConstAccess(1), (AssignableAccess) tac.dst));
+            list.add(Instruction.J(tac.frame, end));
+
+            list.add(less);
+            generate(list, new MoveTAC(tac.frame, new ConstAccess(-1), (AssignableAccess) tac.dst));
+            list.add(Instruction.J(tac.frame, end));
+
+            list.add(equal);
+            generate(list, new MoveTAC(tac.frame, new ConstAccess(0), (AssignableAccess) tac.dst));
+            list.add(Instruction.J(tac.frame, end));
+
+            list.add(end);
         } else
             throw new Error("Unknown extern call \"" + tac.place.toString() + "\"");
     }

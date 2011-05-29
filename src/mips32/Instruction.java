@@ -32,6 +32,7 @@ public class Instruction {
             SW, SB, J,
             JAL, JR,
             BEQ, BNE,
+            BLT, BGT,
             LI, LA, SYSCALL
     }
 
@@ -135,6 +136,14 @@ public class Instruction {
 
     public static Instruction BNE(Frame frame, Temp src1, Temp src2, Label target) {
         return new Instruction(frame, Type.BNE, null, src1, src2, null, target);
+    }
+
+    public static Instruction BLT(Frame frame, Temp src1, Temp src2, Label target) {
+        return new Instruction(frame, Type.BLT, null, src1, src2, null, target);
+    }
+
+    public static Instruction BGT(Frame frame, Temp src1, Temp src2, Label target) {
+        return new Instruction(frame, Type.BGT, null, src1, src2, null, target);
     }
 
     public static Instruction LI(Frame frame, Temp dst, Const imm) {
@@ -266,6 +275,14 @@ public class Instruction {
 
             case BNE:
                 s = "bne " + map.get(src1).toString() + ", " + map.get(src2).toString() + ", " + target.toString();
+                break;
+
+            case BLT:
+                s = "blt " + map.get(src1).toString() + ", " + map.get(src2).toString() + ", " + target.toString();
+                break;
+
+            case BGT:
+                s = "bgt " + map.get(src1).toString() + ", " + map.get(src2).toString() + ", " + target.toString();
                 break;
 
             case LI:
