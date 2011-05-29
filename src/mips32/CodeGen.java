@@ -570,12 +570,41 @@ public class CodeGen {
     }
 
     public void generate(InstructionList list, ReturnTAC tac) {
+        list.add(Instruction.JR(tac.frame, ra));
     }
 
     public void generate(InstructionList list, GotoTAC tac) {
+        list.add(Instruction.J(tac.frame, tac.place));
     }
 
     public void generate(InstructionList list, BranchTAC tac) {
+        Temp t1 = toTemp(list, tac.frame, tac.op1),
+             t2 = toTemp(list, tac.frame, tac.op2);
+        switch (tac.type) {
+            case EQ:
+                list.add(Instruction.BEQ(tac.frame, t1, t2, tac.place));
+                break;
+
+            case NEQ:
+                list.add(Instruction.BNE(tac.frame, t1, t2, tac.place));
+                break;
+
+            case LT:
+                list.add(Instruction.BLT(tac.frame, t1, t2, tac.place));
+                break;
+
+            case LEQ:
+                list.add(Instruction.BLE(tac.frame, t1, t2, tac.place));
+                break;
+
+            case GT:
+                list.add(Instruction.BGT(tac.frame, t1, t2, tac.place));
+                break;
+
+            case GEQ:
+                list.add(Instruction.BGE(tac.frame, t1, t2, tac.place));
+                break;
+        }
     }
 
 }

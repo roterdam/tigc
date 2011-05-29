@@ -33,6 +33,7 @@ public class Instruction {
             JAL, JR,
             BEQ, BNE,
             BLT, BGT,
+            BLE, BGE,
             LI, LA, SYSCALL
     }
 
@@ -141,9 +142,17 @@ public class Instruction {
     public static Instruction BLT(Frame frame, Temp src1, Temp src2, Label target) {
         return new Instruction(frame, Type.BLT, null, src1, src2, null, target);
     }
+    
+    public static Instruction BLE(Frame frame, Temp src1, Temp src2, Label target) {
+        return new Instruction(frame, Type.BLE, null, src1, src2, null, target);
+    }
 
     public static Instruction BGT(Frame frame, Temp src1, Temp src2, Label target) {
         return new Instruction(frame, Type.BGT, null, src1, src2, null, target);
+    }
+
+    public static Instruction BGE(Frame frame, Temp src1, Temp src2, Label target) {
+        return new Instruction(frame, Type.BGE, null, src1, src2, null, target);
     }
 
     public static Instruction LI(Frame frame, Temp dst, Const imm) {
@@ -281,8 +290,16 @@ public class Instruction {
                 s = "blt " + map.get(src1).toString() + ", " + map.get(src2).toString() + ", " + target.toString();
                 break;
 
+            case BLE:
+                s = "ble " + map.get(src1).toString() + ", " + map.get(src2).toString() + ", " + target.toString();
+                break;
+
             case BGT:
                 s = "bgt " + map.get(src1).toString() + ", " + map.get(src2).toString() + ", " + target.toString();
+                break;
+
+            case BGE:
+                s = "bge " + map.get(src1).toString() + ", " + map.get(src2).toString() + ", " + target.toString();
                 break;
 
             case LI:
