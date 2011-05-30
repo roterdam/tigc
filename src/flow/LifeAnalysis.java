@@ -92,10 +92,10 @@ public class LifeAnalysis {
             Instruction ins = null;
             while (iter.hasNext()) {
                 ins = iter.next();
-                outIns.put(ins, current);
+                outIns.put(ins, new HashSet<Temp>(current));
                 current.removeAll(ins.def());
                 current.addAll(ins.use());
-                inIns.put(ins, current);
+                inIns.put(ins, new HashSet<Temp>(current));
             }
         }
     }

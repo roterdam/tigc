@@ -300,17 +300,20 @@ bin/util/Graph.class: src/util/Graph.java
 bin/util/GraphNode.class: src/util/GraphNode.java
 	$(JC) src/util/GraphNode.java
 
-bin/mips32/CodeGen.class: bin/notifier/Notifier.class bin/intermediate/Label.class bin/intermediate/Temp.class bin/intermediate/IR.class bin/frame/Frame.class bin/util/Graph.class bin/mips32/InstructionList.class bin/intermediate/ThreeAddressCode.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/mips32/Instruction.class bin/arch/Const.class bin/regalloc/TempMap.class bin/symbol/Symbol.class bin/flow/FlowGraph.class bin/flow/LifeAnalysis.class src/mips32/CodeGen.java
+bin/mips32/CodeGen.class: bin/notifier/Notifier.class bin/intermediate/Label.class bin/intermediate/Temp.class bin/intermediate/IR.class bin/frame/Frame.class bin/util/Graph.class bin/mips32/InstructionList.class bin/intermediate/ThreeAddressCode.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/mips32/Instruction.class bin/arch/Const.class bin/regalloc/RegAlloc.class bin/symbol/Symbol.class bin/flow/FlowGraph.class bin/flow/LifeAnalysis.class src/mips32/CodeGen.java
 	$(JC) src/mips32/CodeGen.java
 
-bin/mips32/InstructionList.class: bin/regalloc/TempMap.class bin/mips32/Instruction.class src/mips32/InstructionList.java
+bin/mips32/InstructionList.class: bin/regalloc/RegAlloc.class bin/mips32/Instruction.class src/mips32/InstructionList.java
 	$(JC) src/mips32/InstructionList.java
 
-bin/mips32/Instruction.class: bin/arch/Const.class bin/arch/Instruction.class bin/frame/Frame.class bin/regalloc/TempMap.class src/mips32/Instruction.java
+bin/mips32/Instruction.class: bin/arch/Const.class bin/arch/Instruction.class bin/frame/Frame.class bin/regalloc/RegAlloc.class src/mips32/Instruction.java
 	$(JC) src/mips32/Instruction.java
 
-bin/regalloc/TempMap.class: bin/intermediate/Temp.class src/regalloc/TempMap.java
-	$(JC) src/regalloc/TempMap.java
+bin/regalloc/Register.class: src/regalloc/Register.java
+	$(JC) src/regalloc/Register.java
+
+bin/regalloc/RegAlloc.class: bin/regalloc/Register.class bin/util/Graph.class src/regalloc/RegAlloc.java
+	$(JC) src/regalloc/RegAlloc.java
 
 bin/flow/BasicBlock.class: bin/intermediate/Temp.class bin/intermediate/Label.class bin/arch/Instruction.class src/flow/BasicBlock.java
 	$(JC) src/flow/BasicBlock.java

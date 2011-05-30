@@ -194,7 +194,18 @@ public class Instruction extends arch.Instruction {
         return ret;
     }
 
-    public String toString(TempMap map) {
+    public String toString() {
+        Map<Temp, Temp> map = new HashMap<Temp, Temp>();
+        if (src1 != null)
+            map.put(src1, src1);
+        if (src2 != null)
+            map.put(src2, src2);
+        if (dst != null)
+            map.put(dst, dst);
+        return toString(map);
+    }
+
+    public String toString(Map map) {
         String s = "";
         switch (type) {
             case MOVE:

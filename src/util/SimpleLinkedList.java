@@ -32,6 +32,8 @@ public class SimpleLinkedList<T> implements Iterable<T> {
 
     public void addFirst(T x) {
         head = new SimpleLinkedNode<T>(x, head);
+        if (tail == null)
+            tail = head;
     }
 
     public void addAll(SimpleLinkedList<T> list) {

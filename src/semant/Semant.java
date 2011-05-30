@@ -326,6 +326,7 @@ public class Semant {
             codes.add(beginLoop);
             codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.GT, inductionVar, er.place, endLoop));
             codes.addAll(result.codes);
+            codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.ADD, inductionVar, new ConstAccess(1), inductionVar));
             codes.add(new GotoTAC(currentFrame.peek(), beginLoop));
             codes.add(endLoop);
         }

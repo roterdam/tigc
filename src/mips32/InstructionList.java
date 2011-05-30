@@ -15,13 +15,21 @@ class LabeledInstruction {
         this.next = next;
     }
 
-    public String toString(TempMap map) {
+    public String toString(Map map) {
         String s = "";
         if (label != null)
             s += label.toString() + ":";
-        if (instruction != null)
-            s += "\t" + instruction.toString(map);
+        if (instruction != null) {
+            if (map == null)
+                s += "\t" + instruction.toString();
+            else
+                s += "\t" + instruction.toString(map);
+        }
         return s;
+    }
+
+    public String toString() {
+        return toString(null);
     }
 }
 

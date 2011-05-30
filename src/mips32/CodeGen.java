@@ -30,12 +30,14 @@ public class CodeGen {
 
     static class SavePlace {
         LabeledInstruction save, restore;
+        LabeledInstruction ret;
         Frame frame;
 
-        public SavePlace(Frame frame, LabeledInstruction save, LabeledInstruction restore) {
+        public SavePlace(Frame frame, LabeledInstruction save, LabeledInstruction restore, LabeledInstruction ret) {
             this.save = save;
             this.restore = restore;
             this.frame = frame;
+            this.ret = ret;
         }
     }
 
@@ -155,7 +157,7 @@ public class CodeGen {
         }*/
 
         for (SavePlace place: callSaves) {
-            LabeledInstruction p = place.save;
+            LabeledInstruction p = place.ret;
             Instruction i = null;
             while (p != null) {
                 if (p.instruction != null) {
@@ -212,11 +214,70 @@ public class CodeGen {
             }
         }
 
-        TempMap map = new TempMap();
+        InstructionList nlist = new InstructionList();
+        for (LabeledInstruction ins: list) {
+            if (ins.label != null || ins.instruction != null)
+                nlist.add(ins.label, ins.instruction);
+        }
+        list = nlist;
+
+        graph = buildFlowGraph(list);
+        life = new LifeAnalysis(graph);
+        Graph<Temp> ig = buildInterferenceGraph(list, life);
+        ArrayList<Register> registers = new ArrayList<Register>();
+        registers.add(new Register("$v0"));
+        registers.add(new Register("$v1"));
+        registers.add(new Register("$a0"));
+        registers.add(new Register("$a1"));
+        registers.add(new Register("$a2"));
+        registers.add(new Register("$a3"));
+        registers.add(new Register("$t0"));
+        registers.add(new Register("$t1"));
+        registers.add(new Register("$t2"));
+        registers.add(new Register("$t3"));
+        registers.add(new Register("$t4"));
+        registers.add(new Register("$t5"));
+        registers.add(new Register("$t6"));
+        registers.add(new Register("$t7"));
+        registers.add(new Register("$s0"));
+        registers.add(new Register("$s1"));
+        registers.add(new Register("$s2"));
+        registers.add(new Register("$s3"));
+        registers.add(new Register("$s4"));
+        registers.add(new Register("$s5"));
+        registers.add(new Register("$s6"));
+        registers.add(new Register("$s7"));
+        registers.add(new Register("$t8"));
+        registers.add(new Register("$t9"));
+        registers.add(new Register("$fp"));
+        registers.add(new Register("$sp"));
+        registers.add(new Register("$ra"));
+        Map<Temp, Register> preColor = new HashMap<Temp, Register>();
+        preColor.put(v0, new Register("$v0"));
+        preColor.put(a0, new Register("$a0"));
+        preColor.put(a1, new Register("$a1"));
+        preColor.put(fp, new Register("$fp"));
+        preColor.put(sp, new Register("$sp"));
+        preColor.put(ra, new Register("$ra"));
+
+        notifier.message("REG ALLOC:");
+
+        while (true) {        
+            RegAlloc regAlloc = new RegAlloc(ig, registers, preColor);
+            Map<Temp, Register> map = regAlloc.getMap();
+            Set<Temp> spills = regAlloc.getSpill();
+            map.put(zero, new Register("$zero"));
+        }
+
+        System.out.println(new Integer(spills.size()));
+        for (Map.Entry e: map.entrySet())
+            System.out.println(e.getKey().toString() + " ==> " + e.getValue().toString());
+        
+        /*
         for (LabeledInstruction ins: list) {
             notifier.message(ins.toString(map));
-        }
-        
+        }*/
+
         return list;
     }
 
@@ -449,7 +510,7 @@ public class CodeGen {
 
         list.add(Instruction.JAL(callee, tac.place, ra));
 
-        list.add(retLabel);
+        LabeledInstruction retPlace = list.add(retLabel);
         list.add(Instruction.ADDI(callee, sp, sp, callee.frameSize));
         list.add(Instruction.LW(callee, fp, sp, new Const(0)));
         list.add(Instruction.LW(tac.frame, callee.display, sp, new Const(-2 * wordLength)));
@@ -462,7 +523,7 @@ public class CodeGen {
 
         if (needsave) {
             restore = list.addPlaceHolder();
-            callSaves.add(new SavePlace(tac.frame, save, restore));
+            callSaves.add(new SavePlace(tac.frame, save, restore, retPlace));
         }
     }
 
@@ -705,7 +766,7 @@ public class CodeGen {
         }
     }
 
-    public FlowGraph buildFlowGraph(InstructionList list) {
+    private FlowGraph buildFlowGraph(InstructionList list) {
         HashMap<Label, BasicBlock> labelMap = new HashMap<Label, BasicBlock>();
         HashMap<BasicBlock, BasicBlock> next = new HashMap<BasicBlock, BasicBlock>();
         BasicBlock current = new BasicBlock(), t = null;
@@ -757,6 +818,30 @@ public class CodeGen {
             }
         }
 
+        return graph;
+    }
+
+    private Graph<Temp> buildInterferenceGraph(InstructionList list, LifeAnalysis life) {
+        Graph<Temp> graph = new Graph<Temp>();
+        graph.addNode(fp);
+        graph.addNode(sp);
+        graph.addNode(ra);
+        graph.addNode(v0);
+        graph.addNode(a0);
+        graph.addNode(a1);
+        for (LabeledInstruction i: list) {
+            if (i.instruction != null) {
+                for (Temp t: i.instruction.def()) {
+                    for (Temp u: life.out(i.instruction)) {
+                        if (t != u)
+                            graph.addUndirectedEdge(t, u);
+                    }
+                }
+            }
+        }
+        for (Temp t: ir.displays)
+            graph.addNode(t);
+        graph.removeNode(zero);
         return graph;
     }
 }
