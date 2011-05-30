@@ -25,7 +25,7 @@ public class CodeGen {
 
     HashMap<Label, ThreeAddressCode> labelMap;
     IR ir;
-    Temp zero, fp, sp, ra, v0, a0, a1;
+    Temp zero, gp, fp, sp, ra, v0, a0, a1;
     int wordLength = 4;
 
     static class SavePlace {
@@ -62,6 +62,7 @@ public class CodeGen {
         zero = ir.globalFrame.addLocal();
         fp = ir.globalFrame.addLocal();
         sp = ir.globalFrame.addLocal();
+        gp = ir.globalFrame.addLocal();
         ra = ir.globalFrame.addLocal();
         v0 = ir.globalFrame.addLocal();
         a0 = ir.globalFrame.addLocal();
@@ -221,9 +222,6 @@ public class CodeGen {
         }
         list = nlist;
 
-        graph = buildFlowGraph(list);
-        life = new LifeAnalysis(graph);
-        Graph<Temp> ig = buildInterferenceGraph(list, life);
         ArrayList<Register> registers = new ArrayList<Register>();
         registers.add(new Register("$v0"));
         registers.add(new Register("$v1"));
@@ -262,23 +260,122 @@ public class CodeGen {
 
         notifier.message("REG ALLOC:");
 
+        Set<Temp> candidates = new HashSet<Temp>();
+        for (LabeledInstruction i: list) {
+            if (i.instruction != null) {
+                if (i.instruction.dst != null)
+                    candidates.add(i.instruction.dst);
+                if (i.instruction.src1 != null)
+                    candidates.add(i.instruction.src1);
+                if (i.instruction.src2 != null)
+                    candidates.add(i.instruction.src2);
+            }
+        }
+        candidates.removeAll(preColor.keySet());
+        candidates.remove(zero);
+        candidates.remove(gp);
+
         while (true) {        
-            RegAlloc regAlloc = new RegAlloc(ig, registers, preColor);
+            graph = buildFlowGraph(list);
+            life = new LifeAnalysis(graph);
+            Graph<Temp> ig = buildInterferenceGraph(list, life);
+            RegAlloc regAlloc = new RegAlloc(ig, registers, new HashMap<Temp, Register>(preColor), candidates);
+            if (!regAlloc.color()) {
+                notifier.error("Not enough registers");
+                return list;
+            }
             Map<Temp, Register> map = regAlloc.getMap();
-            Set<Temp> spills = regAlloc.getSpill();
             map.put(zero, new Register("$zero"));
+            map.put(gp, new Register("$gp"));
+            Set<Temp> spills = regAlloc.getSpill();
+
+            System.out.println(new Integer(spills.size()).toString());
+
+            if (spills.size() == 0)
+                break;
+
+            nlist = new InstructionList();
+            for (LabeledInstruction li : list) {
+                if (li.label != null)
+                    nlist.add(li.label);
+                if (li.instruction != null) {
+                    if (li.instruction.src1 != null && spills.contains(li.instruction.src1)) {
+                        li.instruction.src1.spill(wordLength);
+                        Temp t = generateLoadSpill(nlist, li.instruction, li.instruction.src1);
+                        candidates.remove(li.instruction.src1);
+                        li.instruction.src1 = t;
+                    }
+                    if (li.instruction.src2 != null && spills.contains(li.instruction.src2)) {
+                        li.instruction.src2.spill(wordLength);
+                        Temp t = generateLoadSpill(nlist, li.instruction, li.instruction.src2);
+                        candidates.remove(li.instruction.src2);
+                        li.instruction.src2 = t;
+                    }
+                    if (li.instruction.dst != null && spills.contains(li.instruction.dst)) {
+                        Temp old = li.instruction.dst;
+                        old.spill(wordLength);
+                        Temp t = li.instruction.frame.addLocal();
+                        li.instruction.dst = t;
+                        nlist.add(li.instruction);
+                        generateStoreSpill(nlist, li.instruction, old, t);
+                        candidates.remove(old);
+                    } else
+                        nlist.add(li.instruction);
+                }
+            }
+            ir.globalFrame.updateFrameSize(wordLength);
+            for (Frame f: ir.funcFrames)
+                f.updateFrameSize(wordLength);
+            list = nlist;
         }
 
-        System.out.println(new Integer(spills.size()));
-        for (Map.Entry e: map.entrySet())
-            System.out.println(e.getKey().toString() + " ==> " + e.getValue().toString());
-        
         /*
         for (LabeledInstruction ins: list) {
             notifier.message(ins.toString(map));
         }*/
 
         return list;
+    }
+
+    Temp generateLoadSpill(InstructionList list, Instruction ins, Temp src) {
+        int offset = src.spill(wordLength);
+        Temp t = ins.frame.addLocal();
+        if (ins.special == 2) {
+            list.add(Instruction.LW(ins.frame, t, sp, new Const(offset)));
+        } else if (src.frame == ir.globalFrame) {
+            list.add(Instruction.LW(ins.frame, t, gp, new Const(-offset)));
+        } else if (ins.frame == src.frame) {
+            list.add(Instruction.LW(ins.frame, t, fp, new Const(offset)));
+        } else {
+            Temp display = src.frame.display;
+            if (!display.inMem()) {
+                list.add(Instruction.LW(ins.frame, t, display, new Const(offset)));
+            } else {
+                list.add(Instruction.LW(ins.frame, t, gp, new Const(-display.spill(wordLength))));
+                list.add(Instruction.LW(ins.frame, t, t, new Const(offset)));
+            }
+        }
+        return t;
+    }
+
+    void generateStoreSpill(InstructionList list, Instruction ins, Temp old, Temp value) {
+        int offset = old.spill(wordLength);
+        if (ins.special == 1) {
+            list.add(Instruction.SW(ins.frame, value, sp, new Const(offset)));
+        } else if (old.frame == ir.globalFrame) {
+            list.add(Instruction.SW(ins.frame, value, gp, new Const(-offset)));
+        } else if (ins.frame == old.frame) {
+            list.add(Instruction.SW(ins.frame, value, fp, new Const(offset)));
+        } else {
+            Temp display = old.frame.display;
+            if (!display.inMem()) {
+                list.add(Instruction.SW(ins.frame, value, display, new Const(offset)));
+            } else {
+                Temp t = ins.frame.addLocal();
+                list.add(Instruction.LW(ins.frame, t, gp, new Const(-display.spill(wordLength))));
+                list.add(Instruction.SW(ins.frame, value, t, new Const(offset)));
+            }
+        }
     }
 
     boolean isStringConstant(Access access) {
@@ -458,25 +555,25 @@ public class CodeGen {
         }
     }
 
-    void addSpecialInstruction(InstructionList list, Frame frame, Temp dst, Access src) {
+    void addSpecialInstruction(InstructionList list, Frame frame, Temp dst, Access src, int special) {
         if (src instanceof Temp) {
             Instruction ins = Instruction.MOVE(frame, dst, (Temp) src);
-            ins.special = true;
+            ins.special = special;
             list.add(ins);
         } else if (src instanceof ConstAccess) {
             if (isStringConstant(src)) {
                 Instruction ins = Instruction.LA(frame, dst, ((UnknownConstAccess) src).name);
-                ins.special = true;
+                ins.special = special;
                 list.add(ins);
             } else {
                 Instruction ins = Instruction.LI(frame, dst, new Const(((ConstAccess) src).value));
-                ins.special = true;
+                ins.special = special;
                 list.add(ins);
             }
         } else if (src instanceof MemAccess) {
             MipsMemStyle m = processMemAccess(list, frame, (MemAccess) src);
             Instruction ins = Instruction.LW(frame, dst, m.base, m.offset);
-            ins.special = true;
+            ins.special = special;
             list.add(ins);
         }
     }
@@ -499,7 +596,7 @@ public class CodeGen {
 
         Iterator<Access> iter = tac.params.iterator();
         for (Temp t: callee.params)
-            addSpecialInstruction(list, tac.frame, t, iter.next());
+            addSpecialInstruction(list, tac.frame, t, iter.next(), 1);
 
         list.add(Instruction.SW(tac.frame, fp, sp, new Const(0)));
         list.add(Instruction.SW(tac.frame, ra, sp, new Const(-wordLength)));
@@ -517,7 +614,7 @@ public class CodeGen {
         list.add(Instruction.LW(tac.frame, ra, sp, new Const(-wordLength)));
 
         if (callee.returnValue != null)
-            addSpecialInstruction(list, tac.frame, tac.actualReturn, callee.returnValue);
+            addSpecialInstruction(list, tac.frame, tac.actualReturn, callee.returnValue, 2);
 
         list.add(Instruction.ADDI(tac.frame, sp, sp, new Const(wordLength)));
 
@@ -842,6 +939,7 @@ public class CodeGen {
         for (Temp t: ir.displays)
             graph.addNode(t);
         graph.removeNode(zero);
+        graph.removeNode(gp);
         return graph;
     }
 }

@@ -767,6 +767,7 @@ public class Semant {
                         ir.displays.add(ir.globalFrame.addLocal());
 
                     Frame frame = new Frame(Label.newLabel(fd.name.toString()), ir.displays.get(currentFrame.size() - 1));
+                    ir.funcFrames.add(frame);
                     Temp tResult = null;
                     if (!(result.actual() instanceof type.Void))
                         tResult = frame.addReturnValue();

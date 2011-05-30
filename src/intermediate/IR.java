@@ -11,7 +11,7 @@ public class IR {
     public UnknownConstAccess wordLength = new UnknownConstAccess("WORD_LENGTH");
     public IntermediateCodeList codes = new IntermediateCodeList();
     public Frame globalFrame = null;
-    public ArrayList funcFrames = new ArrayList<Frame>();
+    public ArrayList<Frame> funcFrames = new ArrayList<Frame>();
     public Graph<Frame> callingGraph = new Graph<Frame>();
     public ArrayList<Temp> displays = new ArrayList<Temp>();
 

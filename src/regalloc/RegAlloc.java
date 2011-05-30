@@ -7,14 +7,19 @@ import intermediate.Temp;
 public class RegAlloc {
     Map<Temp, Register> map = null;
     Set<Temp> spills = new HashSet<Temp>();
+    Set<Temp> candidates = null;
+    Graph<Temp> g;
+    ArrayList<Register> regs;
 
-    public RegAlloc(Graph<Temp> interfereGraph, ArrayList<Register> regs, Map<Temp, Register> preAlloc) {
+    public RegAlloc(Graph<Temp> interfereGraph, ArrayList<Register> regs,
+            Map<Temp, Register> preAlloc, Set<Temp> spillCandidates) {
         if (preAlloc == null)
             map = new HashMap<Temp, Register>();
         else
             map = preAlloc;
-
-        color(interfereGraph, regs);
+        candidates = spillCandidates;
+        g = interfereGraph;
+        this.regs = regs;
     }
 
     public Set<Temp> getSpill() {
@@ -29,14 +34,18 @@ public class RegAlloc {
         return map.get(t);
     }
 
-    private void color(Graph<Temp> g, ArrayList<Register> regs) {
+    public boolean color() {
         int k = regs.size();
 
         Temp kick = null;
         Set<Temp> neighbour = null;
 
+        boolean flag = false;
         for (Temp t: g.nodes()) {
             if (map.containsKey(t))
+                continue;
+            flag = true;
+            if (!candidates.contains(t))
                 continue;
             if (kick == null) {
                 kick = t;
@@ -50,10 +59,11 @@ public class RegAlloc {
         }
 
         if (kick == null)
-            return;
+            return !flag;
 
         g.removeNode(kick);
-        color(g, regs);
+        if (!color())
+            return false;
 
         Set<Register> candidates = new HashSet<Register>(regs);
         for (Temp t: neighbour)
@@ -70,6 +80,8 @@ public class RegAlloc {
             spills.add(kick);
         else
             map.put(kick, r);
+
+        return true;
     }
 }
 

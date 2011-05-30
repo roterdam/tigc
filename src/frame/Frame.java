@@ -12,6 +12,7 @@ public class Frame {
     public Label place;
     public Temp display;
     public Const frameSize = new Const(0), minusFrameSize = new Const(0);
+    private Map<Temp, Integer> spilledLocals = new HashMap<Temp, Integer>();
 
     public Frame(Label place, Temp display) {
         this.place = place;
@@ -19,9 +20,24 @@ public class Frame {
     }
 
     public void updateFrameSize(int wordLength) {
-        int l = params.size() + 4;
+        int l = params.size() + 4 + spilledLocals.size();
         frameSize.bind(l * wordLength);
         minusFrameSize.bind(-l * wordLength);
+    }
+
+    public int spill(Temp t, int wordLength) {
+        if (t == returnValue)
+            return -(3 + params.size()) * wordLength;
+        int i = params.indexOf(t);
+        if (i != -1)
+            return -(3 + i) * wordLength;
+        int index = spilledLocals.size();
+        if (!spilledLocals.containsKey(t)) {
+            i = -(4 + params.size() + index);
+            spilledLocals.put(t, new Integer(i));
+            return i * wordLength;
+        } else
+            return spilledLocals.get(t).intValue() * wordLength;
     }
 
     public Temp addLocal() {

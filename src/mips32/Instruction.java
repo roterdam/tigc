@@ -1,6 +1,5 @@
 package mips32;
 
-import regalloc.TempMap;
 import frame.Frame;
 import intermediate.*;
 import arch.Const;
@@ -13,9 +12,11 @@ public class Instruction extends arch.Instruction {
     Const imm = null;
     Label target = null;
 
-    // if special is true, then the instruction is a param passing or a return value assignment
-    // when it is executed, $fp points to caller's frame start and $sp points to callee's frame start
-    boolean special = false;
+    // if special is 1, then the instruction is a param passing
+    // during execution, $sp is dst's frame pointer
+    // if special is 2, then the instruction is a return value assignment
+    // during execution, $sp is src's frame pointer
+    int special = 0;
 
     ArrayList<Temp> syscallUse = new ArrayList<Temp>();
     Temp syscallDef = null;
