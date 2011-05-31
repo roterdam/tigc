@@ -37,19 +37,17 @@ public class RegAlloc {
     public boolean color() {
         int k = regs.size();
 
-        Temp kick = null;
-        Set<Temp> neighbour = null;
+        Temp kick = null, any = null;
+        Set<Temp> neighbour = null, anyNeighbour = null;
 
-        boolean flag = false;
+        boolean finish = true;
         for (Temp t: g.nodes()) {
             if (map.containsKey(t))
                 continue;
-            flag = true;
-            if (!candidates.contains(t))
-                continue;
-            if (kick == null) {
-                kick = t;
-                neighbour = new HashSet<Temp>(g.succ(t));
+            finish = false;
+            if (candidates.contains(t)) {
+                any = t;
+                anyNeighbour = new HashSet<Temp>(g.succ(t));
             }
             if (g.inDegree(t) < k) {
                 kick = t;
@@ -58,26 +56,38 @@ public class RegAlloc {
             }
         }
 
+        if (finish)
+            return true;
+
+        if (kick == null) {
+            kick = any;
+            neighbour = anyNeighbour;
+        }
+
         if (kick == null)
-            return !flag;
+            return false;
 
         g.removeNode(kick);
         if (!color())
             return false;
 
-        Set<Register> candidates = new HashSet<Register>(regs);
+        Set<Register> colorCandidates = new HashSet<Register>(regs);
         for (Temp t: neighbour)
             if (map.containsKey(t))
-                candidates.remove(map.get(t));
+                colorCandidates.remove(map.get(t));
 
         Register r = null;
-        for (Register rt: candidates) {
+        for (Register rt: colorCandidates) {
             r = rt;
             break;
         }
 
-        if (r == null)
-            spills.add(kick);
+        if (r == null) {
+            if (candidates.contains(kick))
+                spills.add(kick);
+            else
+                return false;
+        }
         else
             map.put(kick, r);
 

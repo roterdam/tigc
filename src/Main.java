@@ -9,6 +9,14 @@ import intermediate.*;
 import mips32.CodeGen;
 
 public class Main {
+    public static String removeExtensionName(String filename) {
+        int i = filename.lastIndexOf('.');
+        if (i == -1)
+            return filename;
+        else
+            return filename.substring(0, i);
+    }
+
     public static void main(String[] args) {
         Notifier notifier = new Notifier(System.out);
         if (args.length == 0) {
@@ -16,9 +24,10 @@ public class Main {
             return;
         }
 
+        String srcFile = args[0];
         FileReader reader = null;
         try {
-            reader = new FileReader(args[0]);
+            reader = new FileReader(srcFile);
         } catch (FileNotFoundException e) {
             notifier.error(e.getMessage());
             return;
@@ -32,14 +41,19 @@ public class Main {
                 IR ir = semant.translate((Expr) absyn.value);
 
                 if (!notifier.hasError()) {
-                    for (IntermediateCode c: ir.codes) {
+                    /*for (IntermediateCode c: ir.codes) {
                         notifier.message(c.toString());
                     }
                     notifier.message("");
-                    notifier.message("");
+                    notifier.message("");*/
 
                     CodeGen cg = new CodeGen(notifier, ir);
-                    cg.generate();
+
+                    if (!notifier.hasError()) {
+                        BufferedWriter writer = new BufferedWriter(new FileWriter(removeExtensionName(srcFile) + ".s"));
+                        cg.generate(writer);
+                        writer.close();
+                    }
 
                 }
             }

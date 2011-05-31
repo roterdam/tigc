@@ -9,6 +9,7 @@ import regalloc.*;
 import arch.Const;
 import symbol.Symbol;
 import flow.*;
+import java.io.BufferedWriter;
 
 public class CodeGen {
     static class MipsMemStyle {
@@ -110,53 +111,7 @@ public class CodeGen {
         }
     }
 
-    public InstructionList generate() {
-        InstructionList list = new InstructionList();
-        for (IntermediateCode ic: ir.codes) {
-            if (ic.label != null)
-                list.add(ic.label);
-            if (ic.tac != null) {
-                generate(list, ic.tac);
-            }
-        }
-
-        FlowGraph graph = buildFlowGraph(list);
-        LifeAnalysis life = new LifeAnalysis(graph);
-        /*for (BasicBlock b: graph.nodes()) {
-            notifier.message("Basic block " + new Integer(b.hashCode()).toString());
-            notifier.message("Successors:");
-            for (BasicBlock n: graph.succ(b))
-                notifier.message(new Integer(n.hashCode()).toString());
-            notifier.message("Predecessors:");
-            for (BasicBlock n: graph.pred(b))
-                notifier.message(new Integer(n.hashCode()).toString());
-
-            notifier.message("Codes:");
-            TempMap map = new TempMap();
-            for (arch.Instruction ins: b.list) {
-                notifier.message(((Instruction) ins).toString(map));
-            }
-
-            notifier.message("Use:");
-            for (Temp t: b.use())
-                notifier.message(t.toString());
-
-            notifier.message("Def:");
-            for (Temp t: b.def())
-                notifier.message(t.toString());
-
-            notifier.message("In:");
-            for (Temp t: life.in(b))
-                notifier.message(t.toString());
-
-            notifier.message("Out:");
-            for (Temp t: life.out(b))
-                notifier.message(t.toString());
-
-
-            notifier.message("");
-        }*/
-
+    void fillCallSaves(InstructionList list, LifeAnalysis life) {
         for (SavePlace place: callSaves) {
             LabeledInstruction p = place.ret;
             Instruction i = null;
@@ -214,6 +169,56 @@ public class CodeGen {
                 tail.next = o;
             }
         }
+    }
+
+    public boolean generate(BufferedWriter writer) throws java.io.IOException {
+        InstructionList list = new InstructionList();
+        for (IntermediateCode ic: ir.codes) {
+            if (ic.label != null)
+                list.add(ic.label);
+            if (ic.tac != null) {
+                generate(list, ic.tac);
+            }
+        }
+
+        FlowGraph graph = buildFlowGraph(list);
+        LifeAnalysis life = new LifeAnalysis(graph);
+        /*for (BasicBlock b: graph.nodes()) {
+            notifier.message("Basic block " + new Integer(b.hashCode()).toString());
+            notifier.message("Successors:");
+            for (BasicBlock n: graph.succ(b))
+                notifier.message(new Integer(n.hashCode()).toString());
+            notifier.message("Predecessors:");
+            for (BasicBlock n: graph.pred(b))
+                notifier.message(new Integer(n.hashCode()).toString());
+
+            notifier.message("Codes:");
+            TempMap map = new TempMap();
+            for (arch.Instruction ins: b.list) {
+                notifier.message(((Instruction) ins).toString(map));
+            }
+
+            notifier.message("Use:");
+            for (Temp t: b.use())
+                notifier.message(t.toString());
+
+            notifier.message("Def:");
+            for (Temp t: b.def())
+                notifier.message(t.toString());
+
+            notifier.message("In:");
+            for (Temp t: life.in(b))
+                notifier.message(t.toString());
+
+            notifier.message("Out:");
+            for (Temp t: life.out(b))
+                notifier.message(t.toString());
+
+
+            notifier.message("");
+        }*/
+
+        fillCallSaves(list, life);
 
         InstructionList nlist = new InstructionList();
         for (LabeledInstruction ins: list) {
@@ -258,8 +263,6 @@ public class CodeGen {
         preColor.put(sp, new Register("$sp"));
         preColor.put(ra, new Register("$ra"));
 
-        notifier.message("REG ALLOC:");
-
         Set<Temp> candidates = new HashSet<Temp>();
         for (LabeledInstruction i: list) {
             if (i.instruction != null) {
@@ -275,6 +278,8 @@ public class CodeGen {
         candidates.remove(zero);
         candidates.remove(gp);
 
+        Map<Temp, Register> map = null;
+
         while (true) {        
             graph = buildFlowGraph(list);
             life = new LifeAnalysis(graph);
@@ -282,14 +287,12 @@ public class CodeGen {
             RegAlloc regAlloc = new RegAlloc(ig, registers, new HashMap<Temp, Register>(preColor), candidates);
             if (!regAlloc.color()) {
                 notifier.error("Not enough registers");
-                return list;
+                return false;
             }
-            Map<Temp, Register> map = regAlloc.getMap();
+            map = regAlloc.getMap();
             map.put(zero, new Register("$zero"));
             map.put(gp, new Register("$gp"));
             Set<Temp> spills = regAlloc.getSpill();
-
-            System.out.println(new Integer(spills.size()).toString());
 
             if (spills.size() == 0)
                 break;
@@ -329,12 +332,10 @@ public class CodeGen {
             list = nlist;
         }
 
-        /*
-        for (LabeledInstruction ins: list) {
-            notifier.message(ins.toString(map));
-        }*/
+        SpimAsm asm = new SpimAsm(list, map, ir);
+        asm.output(writer);
 
-        return list;
+        return true;
     }
 
     Temp generateLoadSpill(InstructionList list, Instruction ins, Temp src) {
@@ -343,7 +344,7 @@ public class CodeGen {
         if (ins.special == 2) {
             list.add(Instruction.LW(ins.frame, t, sp, new Const(offset)));
         } else if (src.frame == ir.globalFrame) {
-            list.add(Instruction.LW(ins.frame, t, gp, new Const(-offset)));
+            list.add(Instruction.LW(ins.frame, t, gp, new Const(offset)));
         } else if (ins.frame == src.frame) {
             list.add(Instruction.LW(ins.frame, t, fp, new Const(offset)));
         } else {
@@ -351,7 +352,7 @@ public class CodeGen {
             if (!display.inMem()) {
                 list.add(Instruction.LW(ins.frame, t, display, new Const(offset)));
             } else {
-                list.add(Instruction.LW(ins.frame, t, gp, new Const(-display.spill(wordLength))));
+                list.add(Instruction.LW(ins.frame, t, gp, new Const(display.spill(wordLength))));
                 list.add(Instruction.LW(ins.frame, t, t, new Const(offset)));
             }
         }
@@ -363,7 +364,7 @@ public class CodeGen {
         if (ins.special == 1) {
             list.add(Instruction.SW(ins.frame, value, sp, new Const(offset)));
         } else if (old.frame == ir.globalFrame) {
-            list.add(Instruction.SW(ins.frame, value, gp, new Const(-offset)));
+            list.add(Instruction.SW(ins.frame, value, gp, new Const(offset)));
         } else if (ins.frame == old.frame) {
             list.add(Instruction.SW(ins.frame, value, fp, new Const(offset)));
         } else {
@@ -372,7 +373,7 @@ public class CodeGen {
                 list.add(Instruction.SW(ins.frame, value, display, new Const(offset)));
             } else {
                 Temp t = ins.frame.addLocal();
-                list.add(Instruction.LW(ins.frame, t, gp, new Const(-display.spill(wordLength))));
+                list.add(Instruction.LW(ins.frame, t, gp, new Const(display.spill(wordLength))));
                 list.add(Instruction.SW(ins.frame, value, t, new Const(offset)));
             }
         }

@@ -97,7 +97,7 @@ public class Semant {
     }
 
     public IR translate(absyn.Expr expr) {
-        Frame globalFrame = new Frame(Label.newLabel("main"), null);
+        Frame globalFrame = new Frame(Label.newLabel("main"), null, true);
         ir = new IR(globalFrame);
         currentFrame.push(globalFrame);
         breakStack.push(null);
