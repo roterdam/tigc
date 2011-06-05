@@ -72,9 +72,13 @@ public class RegAlloc {
             return false;
 
         Set<Register> colorCandidates = new HashSet<Register>(regs);
-        for (Temp t: neighbour)
-            if (map.containsKey(t))
+        for (Temp t: neighbour) {
+            if (map.containsKey(t)) {
                 colorCandidates.remove(map.get(t));
+//                if (colorCandidates.isEmpty())
+//                    break;
+            }
+        }
 
         Register r = null;
         for (Register rt: colorCandidates) {

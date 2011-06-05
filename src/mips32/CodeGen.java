@@ -289,6 +289,7 @@ public class CodeGen {
                 notifier.error("Not enough registers");
                 return false;
             }
+
             map = regAlloc.getMap();
             map.put(zero, new Register("$zero"));
             map.put(gp, new Register("$gp"));
@@ -344,7 +345,7 @@ public class CodeGen {
         if (ins.special == 2) {
             list.add(Instruction.LW(ins.frame, t, sp, new Const(offset)));
         } else if (src.frame == ir.globalFrame) {
-            list.add(Instruction.LW(ins.frame, t, gp, new Const(offset)));
+            list.add(Instruction.LW(ins.frame, t, gp, new Const(offset - 0x8000)));
         } else if (ins.frame == src.frame) {
             list.add(Instruction.LW(ins.frame, t, fp, new Const(offset)));
         } else {
@@ -352,7 +353,7 @@ public class CodeGen {
             if (!display.inMem()) {
                 list.add(Instruction.LW(ins.frame, t, display, new Const(offset)));
             } else {
-                list.add(Instruction.LW(ins.frame, t, gp, new Const(display.spill(wordLength))));
+                list.add(Instruction.LW(ins.frame, t, gp, new Const(display.spill(wordLength) - 0x8000)));
                 list.add(Instruction.LW(ins.frame, t, t, new Const(offset)));
             }
         }
@@ -364,7 +365,7 @@ public class CodeGen {
         if (ins.special == 1) {
             list.add(Instruction.SW(ins.frame, value, sp, new Const(offset)));
         } else if (old.frame == ir.globalFrame) {
-            list.add(Instruction.SW(ins.frame, value, gp, new Const(offset)));
+            list.add(Instruction.SW(ins.frame, value, gp, new Const(offset - 0x8000)));
         } else if (ins.frame == old.frame) {
             list.add(Instruction.SW(ins.frame, value, fp, new Const(offset)));
         } else {
@@ -373,7 +374,7 @@ public class CodeGen {
                 list.add(Instruction.SW(ins.frame, value, display, new Const(offset)));
             } else {
                 Temp t = ins.frame.addLocal();
-                list.add(Instruction.LW(ins.frame, t, gp, new Const(display.spill(wordLength))));
+                list.add(Instruction.LW(ins.frame, t, gp, new Const(display.spill(wordLength) - 0x8000)));
                 list.add(Instruction.SW(ins.frame, value, t, new Const(offset)));
             }
         }

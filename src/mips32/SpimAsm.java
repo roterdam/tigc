@@ -46,7 +46,7 @@ class SpimAsm {
     }
 
     private void writeDataSeg(BufferedWriter writer) throws IOException {
-        writer.write("\t.data 0x10008000");
+        writer.write("\t.data 0x10000000");
         writer.newLine();
         writer.write("\t.align 2");
         writer.newLine();

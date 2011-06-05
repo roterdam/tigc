@@ -49,6 +49,10 @@ public class Instruction extends arch.Instruction {
         this.target = target;
     }
 
+    private Instruction() {
+        this(null, null, null, null, null, null, null);
+    }
+
     public static Instruction MOVE(Frame frame, Temp dst, Temp src) {
         return new Instruction(frame, Type.MOVE, dst, src, null, null, null);
     }
@@ -331,8 +335,8 @@ public class Instruction extends arch.Instruction {
         return s;
     }
 
-    public Set<Temp> use() {
-        HashSet<Temp> ret = new HashSet<Temp>();
+    public List<Temp> useList() {
+        LinkedList<Temp> ret = new LinkedList<Temp>();
         if (type != Type.SYSCALL) {
             if (src1 != null)
                 ret.add(src1);
@@ -356,6 +360,10 @@ public class Instruction extends arch.Instruction {
         return ret;
     }
 
+    public boolean hasSideEffects() {
+        return type == Type.SYSCALL;
+    }
+
     public boolean isJump() {
         if (type == Type.J || type == Type.JR || type == Type.JAL
                 || isBranch())
@@ -371,6 +379,46 @@ public class Instruction extends arch.Instruction {
             return true;
         else
             return false;
+    }
+
+    public Instruction rewrite(List<Temp> params) {
+        Instruction ret = new Instruction();
+        ret.frame = this.frame;
+        ret.type = this.type;
+        ret.src1 = this.src1;
+        ret.src2 = this.src2;
+        ret.dst = this.dst;
+        ret.imm = this.imm;
+        ret.target = this.target;
+        ret.special = this.special;
+        ret.syscallUse = this.syscallUse;
+        ret.syscallDef = this.syscallDef;
+        ret.ra = this.ra;
+        if (this.type != Type.SYSCALL) {
+            if (params.size() >= 1)
+                ret.src1 = params.get(0);
+            if (params.size() >= 2)
+                ret.src2 = params.get(2);
+        }
+        return ret;
+    }
+
+    public boolean isLoad() {
+        if (type == Type.LW || type == Type.LB)
+            return true;
+        else
+            return false;
+    }
+
+    public boolean isStore() {
+        if (type == Type.SW || type == Type.SB)
+            return true;
+        else
+            return false;
+    }
+
+    public int opCode() {
+        return type.ordinal();
     }
 }
 
