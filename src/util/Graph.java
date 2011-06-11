@@ -3,9 +3,9 @@ package util;
 import java.util.*;
 
 public class Graph<NodeType> {
-    HashSet<NodeType> nodes = new HashSet<NodeType>();
-    HashMap<NodeType, HashSet<NodeType>> preds = new HashMap<NodeType, HashSet<NodeType>>(),
-        succs = new HashMap<NodeType, HashSet<NodeType>>();
+    LinkedHashSet<NodeType> nodes = new LinkedHashSet<NodeType>();
+    LinkedHashMap<NodeType, LinkedHashSet<NodeType>> preds = new LinkedHashMap<NodeType, LinkedHashSet<NodeType>>(),
+        succs = new LinkedHashMap<NodeType, LinkedHashSet<NodeType>>();
 
     public Graph() {
     }
@@ -24,10 +24,10 @@ public class Graph<NodeType> {
         if (!hasNode(v))
             addNode(v);
         if (!succs.containsKey(u))
-            succs.put(u, new HashSet<NodeType>());
+            succs.put(u, new LinkedHashSet<NodeType>());
         succs.get(u).add(v);
         if (!preds.containsKey(v))
-            preds.put(v, new HashSet<NodeType>());
+            preds.put(v, new LinkedHashSet<NodeType>());
         preds.get(v).add(u);
     }
 
@@ -53,16 +53,16 @@ public class Graph<NodeType> {
     }
 
     public void removeNode(NodeType n) {
-        HashSet<NodeType> t = succs.get(n);
+        LinkedHashSet<NodeType> t = succs.get(n);
         if (t != null) {
-            t = new HashSet<NodeType>(t);
+            t = new LinkedHashSet<NodeType>(t);
             for (NodeType v: t)
                 removeDirectedEdge(n, v);
             succs.remove(n);
         }
         t = preds.get(n);
         if (t != null) {
-            t = new HashSet<NodeType>(t);
+            t = new LinkedHashSet<NodeType>(t);
             for (NodeType u: t)
                 removeDirectedEdge(u, n);
             preds.remove(n);
@@ -71,7 +71,7 @@ public class Graph<NodeType> {
     }
 
     public boolean isDirectedEdge(NodeType u, NodeType v) {
-        HashSet<NodeType> t = succs.get(u);
+        LinkedHashSet<NodeType> t = succs.get(u);
         if (t == null)
             return false;
         return t.contains(v);
@@ -84,7 +84,7 @@ public class Graph<NodeType> {
     public Set<NodeType> pred(NodeType n) {
         Set<NodeType> ret = preds.get(n);
         if (ret == null)
-            return new HashSet<NodeType>();
+            return new LinkedHashSet<NodeType>();
         else
             return ret;
     }
@@ -92,7 +92,7 @@ public class Graph<NodeType> {
     public Set<NodeType> succ(NodeType n) {
         Set<NodeType> ret = succs.get(n);
         if (ret == null)
-            return new HashSet<NodeType>();
+            return new LinkedHashSet<NodeType>();
         else
             return ret;
     }
@@ -110,7 +110,7 @@ public class Graph<NodeType> {
     }
 
     public Set<NodeType> heads() {
-        Set<NodeType> ret = new HashSet<NodeType>();
+        Set<NodeType> ret = new LinkedHashSet<NodeType>();
         for (NodeType n: nodes)
             if (inDegree(n) == 0)
                 ret.add(n);
@@ -118,7 +118,7 @@ public class Graph<NodeType> {
     }
 
     public Set<NodeType> tails() {
-        Set<NodeType> ret = new HashSet<NodeType>();
+        Set<NodeType> ret = new LinkedHashSet<NodeType>();
         for (NodeType n: nodes)
             if (outDegree(n) == 0)
                 ret.add(n);
@@ -143,8 +143,29 @@ public class Graph<NodeType> {
     public boolean isLoopEdge(NodeType u, NodeType v) {
         if (!isEdge(u, v))
             return false;
-        visited = new HashSet<NodeType>();
+        visited = new LinkedHashSet<NodeType>();
         return isPath(v, u);
+    }
+
+    public List<NodeType> topologicalSort() {
+        Queue<NodeType> q = new LinkedList<NodeType>(heads());
+        List<NodeType> ret = new ArrayList<NodeType>();
+        Map<NodeType, Integer> inDegrees = new LinkedHashMap<NodeType, Integer>();
+        
+        for (NodeType n: nodes())
+            inDegrees.put(n, new Integer(inDegree(n)));
+
+        while (!q.isEmpty()) {
+            NodeType n = q.poll();
+            ret.add(n);
+            for (NodeType d: succ(n)) {
+                int i = inDegrees.get(d).intValue() - 1;
+                inDegrees.put(d, new Integer(i));
+                if (i == 0)
+                    q.offer(d);
+            }
+        }
+        return ret;
     }
 }
 

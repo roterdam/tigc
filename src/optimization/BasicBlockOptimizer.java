@@ -4,14 +4,20 @@ import flow.BasicBlock;
 import java.util.*;
 import arch.Instruction;
 import util.Graph;
+import flow.LifeAnalysis;
+import intermediate.*;
+import arch.InstructionGenerator;
+import frame.Frame;
 
 public class BasicBlockOptimizer {
     BasicBlock block;
-    Set<Temp> live;
+    LifeAnalysis life;
+    InstructionGenerator gen;
 
-    public BasicBlockOptimizer(BasicBlock block, Set<Temp> live) {
+    public BasicBlockOptimizer(BasicBlock block, LifeAnalysis life, InstructionGenerator gen) {
         this.block = block;
-        this.live = live;
+        this.life = life;
+        this.gen = gen;
     }
 
     static final Temp mem = Temp.newTemp(null);
@@ -27,27 +33,32 @@ public class BasicBlockOptimizer {
     }
 
     static class Node {
-        int opCode;
-        List<Node> preds;
-        List<Instruction> list;
-        List<VersionedTemp> useList;
-        List<Temp> results;
+        List<Node> useList;
+        Temp result;
+        LinkedList<Instruction> ins;
+        LinkedList<Instruction> nIns;
 
-        public Node(int opCode, List<VersionedTemp> useList) {
-            this.opCode = opCode;
+        public Node(List<Node> useList) {
             this.useList = useList;
-            this.list = new ArrayList<Instruction>();
-            this.results = new ArrayList<Temp>();
-            this.preds = new ArrayList<Node>();
+            this.result = null;
+            this.ins = new LinkedList<Instruction>();
+            this.nIns = new LinkedList<Instruction>();
         }
     }
 
     Map<Temp, VersionedTemp> map = new HashMap<Temp, VersionedTemp>();
-    Map<VersionedTemp, Node> vnMap = new Map<VersionedTemp, Node>();
+    Map<VersionedTemp, Node> vnMap = new HashMap<VersionedTemp, Node>();
+    Map<List<Node>, List<Node>> uMap = new HashMap<List<Node>, List<Node>>();
+
+    void newMap() {
+        map = new HashMap<Temp, VersionedTemp>();
+        vnMap = new HashMap<VersionedTemp, Node>();
+        uMap = new HashMap<List<Node>, List<Node>>();
+    }
 
     List<Temp> use(Instruction ins) {
-        List<Temp> ret = ins.use();
-        if (ins.isLoad())
+        List<Temp> ret = ins.useList();
+        if (ins.isLoad() || ins.isStore())
             ret.add(mem);
         return ret;
     }
@@ -56,29 +67,30 @@ public class BasicBlockOptimizer {
         Set<Temp> ret = ins.def();
         if (ins.isStore())
             ret.add(mem);
-        if (ret.size() == 0)
+        if (ret.size() != 1)
             return null;
-        else if (ret.size() == 1)
-            return ret.get(0);
-        else
-            throw new Error("UNSUPPORTED: An instruction with multi temps defined");
+
+        for (Temp t: ret)
+            return t;
+        return null;
     }
 
     VersionedTemp latestVersion(Temp t) {
         if (map.containsKey(t))
             return map.get(t);
         else {
-            VersionedMap v = new VersionedMap(t, 0);
+            VersionedTemp v = new VersionedTemp(0, t);
             map.put(t, v);
             return v;
         }
     }
 
     Node versionNode(VersionedTemp vt) {
-        if (tnMap.containsKey(vt))
+        if (vnMap.containsKey(vt))
             return vnMap.get(vt);
         else {
-            Node n = new Node(0, new ArrayList<VersionedTemp>());
+            Node n = new Node(new ArrayList<Node>());
+            n.result = vt.temp;
             vnMap.put(vt, n);
             return n;
         }
@@ -86,128 +98,183 @@ public class BasicBlockOptimizer {
 
     VersionedTemp advanceVersion(Temp t) {
         if (map.containsKey(t)) {
-            VersionedMap v = new VersionedMap(t, map.get(t).version + 1);
+            VersionedTemp v = new VersionedTemp(map.get(t).version + 1, t);
             map.put(t, v);
             return v;
         } else {
-            VersionedMap v = new VersionedMap(t, 0);
+            VersionedTemp v = new VersionedTemp(0, t);
             map.put(t, v);
             return v;
         }
     }
 
-    void setResults(Graph g, Node n) {
-        Instruction any = null;
-        Iterator<Instruction> iter = n.list.iterator();
-        while (iter.hasNext()) {
-            Instruction i = iter.next();
-            if (any == null)
-                any = i;
-
-            boolean dead = true;
-            for (Temp t: i.def()) {
-                if (live.contains(t) && versionNode(latestVersion(t)) == n) {
-                    n.results.add(t);
-                    dead = false;
-                }
-            }
-            if (!i.hasSideEffects() && dead && (i.def().size() == 1 && !n.results.contains(i.def().get(0))))
-                iter.remove();
-        }
-        if (n.results.isEmpty()) {
-            n.list.add(any);
-            if (t.def().size() > 0)
-                n.results.add(t.def().at(0));
-        }
-
-    }
-
-    void setResults(Graph g) {
-        for (Node n: g.tails())
-            setResults(g, n);
-    }
-
-    public BasicBlock optimize() {
-        Instruction lastJump = block.list.getLast();
-        if (lastJump != null && lastJump.isJump()) {
-            live = new HashSet<Temp>(live);
-            live.removeAll(lastJump.def());
-            live.addAll(lastJump.use());
-        } else
-            lastJump = null;
-
-        Graph<Node> g = new Graph<Node>();
-        for (Instruction i: block.list) {
-            if (i == lastJump)
+    void rewrite(BasicBlock ret, Graph<Node> dag, Set<Temp> out, Frame frame) {
+        out = new HashSet<Temp>(out);
+        out.add(mem);
+        for (Temp t: out) {
+            if (!map.containsKey(t))
                 continue;
+            VersionedTemp vt = map.get(t);
+            if (!vnMap.containsKey(vt))
+                continue;
+            Node n = vnMap.get(vt);
 
-            List<VersionedTemp> versioned = new ArrayList<VersionedTemp>();
-            for (Temp t: i.useList())
-                versioned.add(latestVersion(t));
-
-            Node n = null;
-            if (!i.hasSideEffects()) {
-                for (Node nn: g) {
-                    if (nn.opCode == i.opCode() && nn.useList.equals(versioned)) {
-                        n = nn;
-                        break;
-                    }
-                }
-            }
-            if (n == null) {
-                n = new Node(i.opCode(), versioned);
-                n.list.add(i);
-                g.addNode(n);
-
-                for (VersionedTemp use: versioned) {
-                    Node s = versionNode(use, n);
-                    g.addEdge(s, n);
-                    n.preds.add(s);
-                }
-            } else
-                n.ins.add(i);
-
-            for (Temp t: i.def()) {
-                VersionedTemp vt = advanceVersion(t);
-                vnMap.put(vt, n);
+            for (Instruction i: n.ins) {
+                if (def(i) == t)
+                    n.nIns.add(i);
             }
         }
 
         boolean change = false;
         do {
-            for (Node n: new HashSet<Node>(g.tails())) {
-                Iterator<Instruction> iter = n.list.iterator();
-                while (iter.hasNext()) {
-                    Instruction i = iter.next();
-                    if (i.hasSideEffects())
-                        continue;
-
-                    boolean dead = true;
-                    for (Temp t: i.def()) {
-                        if (live.contains(t)) {
-                            dead = false;
-                            break;
-                        }
-                    }
-                    if (dead)
-                        iter.remove();
-                }
-                if (n.list.isEmpty()) {
-                    g.removeNode(n);
+            change = false;
+            List<Node> tails = new ArrayList<Node>(dag.tails());
+            for (Node n: tails) {
+                if (n.nIns.size() == 0) {
+                    dag.removeNode(n);
                     change = true;
                 }
             }
         } while (change);
 
+        List<Node> sorted = dag.topologicalSort();
+        for (Node n: sorted) {
+            if (n.result != null && n.result != mem) {
+                Temp t = frame.addLocal();
+                ret.add(gen.MOVE(frame, t, n.result));
+                n.result = t;
+            }
+            if (n.ins.size() == 0)
+                continue;
+
+            
+            List<Temp> use = new ArrayList<Temp>();
+            for (Node p: n.useList)
+                use.add(p.result);
+
+            if (n.result == null) {
+                Instruction model = null;
+                for (Instruction i: n.ins)
+                    if (!i.isMove()) {
+                        model = i;
+                        break;
+                    }
+
+                if (n.nIns.size() > 0)
+                    n.result = def(n.nIns.removeFirst());
+                else
+                    n.result = n.ins.peekFirst().frame.addLocal();
+                ret.add(model.rewrite(n.result, use));
+            }
+
+            for (Instruction i: n.nIns)
+                ret.add(i.rewriteMove(n.result));
+        }
+    }
+
+    boolean sameType(Node n, Instruction i) {
+        for (Instruction ii: n.ins)
+            if (!ii.sameExceptTemps(i))
+                return false;
+        return true;
+    }
+
+    void copyPropagation(BasicBlock block) {
+        Map<Temp, Instruction> alias = new HashMap<Temp, Instruction>();
+        Map<Instruction, Map<Temp, Instruction>> reaching = new HashMap<Instruction, Map<Temp, Instruction>>();
+        Map<Temp, Instruction> now = new HashMap<Temp, Instruction>();
+
+        BasicBlock ret = new BasicBlock();
+        for (Instruction i: block) {
+            reaching.put(i, new HashMap<Temp, Instruction>(now));
+
+            List<Temp> newUse = new ArrayList<Temp>();
+            for (Temp t: i.useList()) {
+                Temp r = t;
+                while (alias.containsKey(r)) {
+                    Temp candidate = alias.get(r).useList().get(0);
+                    Map<Temp, Instruction> then = reaching.get(alias.get(r));
+
+                    if ((!then.containsKey(candidate) && !now.containsKey(candidate)) ||
+                            then.get(candidate) == now.get(candidate))
+                        r = candidate;
+                    else
+                        break;
+                }
+                newUse.add(r);
+            }
+            ret.add(i.rewrite(def(i), newUse));
+
+            if (i.isMove())
+                alias.put(def(i), i);
+            else {
+                for (Temp t: i.def())
+                    alias.remove(t);
+            }
+            now.put(def(i), i);
+        }
+
+        block.replace(ret);
+    }
+
+    public void optimize() {
         BasicBlock ret = new BasicBlock();
         ret.labels = block.labels;
 
-        for (Node n: new HashSet<Node>(g.heads())) {
+        Graph<Node> g = new Graph<Node>();
+        Frame firstFrame = null;
+        for (Iterator<Instruction> iter = block.iterator();
+                iter.hasNext(); ) {
+            Instruction i = iter.next();
+            if (firstFrame == null)
+                firstFrame = i.frame;
 
+            Temp def = def(i);
+            if (def == null || i.isJump() || i.hasSideEffects()) {
+                rewrite(ret, g, life.in(i), firstFrame);
+                ret.add(i);
+                g = new Graph<Node>();
+                newMap();
+                firstFrame = null;
+            } else {
+                List<Node> useList = new ArrayList<Node>();
+                for (Temp t: use(i))
+                    useList.add(versionNode(latestVersion(t)));
+                Node n = null;
+                if (i.isMove())
+                    n = versionNode(latestVersion(i.useList().get(0)));
+                else if (uMap.containsKey(useList)) {
+                    for (Node nn: uMap.get(useList))
+                        if (sameType(nn, i)) {
+                            n = nn;
+                            break;
+                        }
+                }
+                if (n == null) {
+                    List<Node> actualUseList = new ArrayList<Node>();
+                    for (Temp t: i.useList())
+                        actualUseList.add(versionNode(latestVersion(t)));
+                    n = new Node(actualUseList);
+
+                    if (!uMap.containsKey(useList))
+                        uMap.put(useList, new ArrayList<Node>());
+                    uMap.get(useList).add(n);
+
+                    g.addNode(n);
+                    for (Node nn: useList)
+                        g.addEdge(nn, n);
+                } else
+                    g.addNode(n);
+
+                n.ins.add(i);
+                vnMap.put(advanceVersion(def), n);
+
+                if (!iter.hasNext())
+                    rewrite(ret, g, life.out(i), firstFrame);
+            }
         }
-
-        if (lastJump != null)
-            ret.list.add(lastJump);
+        copyPropagation(ret);
+        block.replace(ret);
     }
 }
 

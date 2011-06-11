@@ -88,7 +88,7 @@ public class LifeAnalysis {
         for (BasicBlock b: blocks) {
             HashSet<Temp> current = new HashSet<Temp> (outBlock.get(b));
 
-            Iterator<Instruction> iter = b.list.descendingIterator();
+            Iterator<Instruction> iter = b.descendingIterator();
             Instruction ins = null;
             while (iter.hasNext()) {
                 ins = iter.next();

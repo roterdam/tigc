@@ -26,6 +26,7 @@ public class CodeGen {
 
     HashMap<Label, ThreeAddressCode> labelMap;
     IR ir;
+    Optimizer opt;
     Temp zero, gp, fp, sp, ra, v0, a0, a1;
     int wordLength = 4;
 
@@ -44,9 +45,10 @@ public class CodeGen {
 
     ArrayList<SavePlace> callSaves;
 
-    public CodeGen(Notifier notifier, IR ir) {
+    public CodeGen(Notifier notifier, IR ir, Optimizer opt) {
         this.notifier = notifier;
         this.ir = ir;
+        this.opt = opt;
         ir.wordLength.bind(wordLength);
         labelMap = new HashMap<Label, ThreeAddressCode>();
         
@@ -181,7 +183,7 @@ public class CodeGen {
             }
         }
 
-        FlowGraph graph = buildFlowGraph(list);
+        FlowGraph graph = Util.buildFlowGraph(list);
         LifeAnalysis life = new LifeAnalysis(graph);
         /*for (BasicBlock b: graph.nodes()) {
             notifier.message("Basic block " + new Integer(b.hashCode()).toString());
@@ -225,7 +227,8 @@ public class CodeGen {
             if (ins.label != null || ins.instruction != null)
                 nlist.add(ins.label, ins.instruction);
         }
-        list = nlist;
+
+        list = opt.optimize(nlist);
 
         ArrayList<Register> registers = new ArrayList<Register>();
         registers.add(new Register("$v0"));
@@ -281,7 +284,7 @@ public class CodeGen {
         Map<Temp, Register> map = null;
 
         while (true) {        
-            graph = buildFlowGraph(list);
+            graph = Util.buildFlowGraph(list);
             life = new LifeAnalysis(graph);
             Graph<Temp> ig = buildInterferenceGraph(list, life);
             RegAlloc regAlloc = new RegAlloc(ig, registers, new HashMap<Temp, Register>(preColor), candidates);
@@ -863,61 +866,6 @@ public class CodeGen {
                 list.add(Instruction.BGE(tac.frame, t1, t2, tac.place));
                 break;
         }
-    }
-
-    private FlowGraph buildFlowGraph(InstructionList list) {
-        HashMap<Label, BasicBlock> labelMap = new HashMap<Label, BasicBlock>();
-        HashMap<BasicBlock, BasicBlock> next = new HashMap<BasicBlock, BasicBlock>();
-        BasicBlock current = new BasicBlock(), t = null;
-        ArrayList<Label> labels = new ArrayList<Label>();
-        FlowGraph graph = new FlowGraph();
-        ArrayList<BasicBlock> blocks = new ArrayList<BasicBlock>();
-
-        for (LabeledInstruction i: list) {
-            if (i.label != null) {
-                if (!current.list.isEmpty()) {
-                    blocks.add(current);
-                    graph.add(current);
-                    t = new BasicBlock();
-                    next.put(current, t);
-                    current = t;
-                }
-
-                current.add(i.label);
-                labelMap.put(i.label, current);
-            }
-            if (i.instruction != null) {
-                current.add(i.instruction);
-                if (i.instruction.isJump()) {
-                    blocks.add(current);
-                    graph.add(current);
-                    t = new BasicBlock();
-                    next.put(current, t);
-                    current = t;
-                }
-            }
-        }
-        blocks.add(current);
-        graph.add(current);
-
-        for (BasicBlock b: blocks) {
-            if (b.list.isEmpty() || !b.list.getLast().isJump()) {
-                if (next.containsKey(b))
-                    graph.addEdge(b, next.get(b));
-            } else {
-                Instruction ins = (Instruction) b.list.getLast();
-                if (ins.type == Instruction.Type.JR) {
-                    for (Label p: ins.frame.returns)
-                        graph.addEdge(b, labelMap.get(p));
-                } else {
-                    graph.addEdge(b, labelMap.get(ins.target));
-                    if (ins.isBranch() && next.containsKey(b))
-                        graph.addEdge(b, next.get(b));
-                }
-            }
-        }
-
-        return graph;
     }
 
     private Graph<Temp> buildInterferenceGraph(InstructionList list, LifeAnalysis life) {

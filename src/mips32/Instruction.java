@@ -282,7 +282,7 @@ public class Instruction extends arch.Instruction {
                 break;
 
             case LW:
-                s = "lw " + map.get(dst).toString() + ", " + imm.toString() + "(" + map.get(src1).toString() + ")";
+                s += "lw " + map.get(dst).toString() + ", " + imm.toString() + "(" + map.get(src1).toString() + ")";
                 break;
 
             case LB:
@@ -381,13 +381,16 @@ public class Instruction extends arch.Instruction {
             return false;
     }
 
-    public Instruction rewrite(List<Temp> params) {
+    public Instruction rewrite(Temp dst, List<Temp> params) {
         Instruction ret = new Instruction();
         ret.frame = this.frame;
         ret.type = this.type;
         ret.src1 = this.src1;
         ret.src2 = this.src2;
-        ret.dst = this.dst;
+        if (isStore() || this.type == Type.JAL || this.type == Type.SYSCALL)
+            ret.dst = null;
+        else
+            ret.dst = dst;
         ret.imm = this.imm;
         ret.target = this.target;
         ret.special = this.special;
@@ -398,9 +401,13 @@ public class Instruction extends arch.Instruction {
             if (params.size() >= 1)
                 ret.src1 = params.get(0);
             if (params.size() >= 2)
-                ret.src2 = params.get(2);
+                ret.src2 = params.get(1);
         }
         return ret;
+    }
+
+    public Instruction rewriteMove(Temp src) {
+        return MOVE(frame, dst, src);
     }
 
     public boolean isLoad() {
@@ -417,8 +424,24 @@ public class Instruction extends arch.Instruction {
             return false;
     }
 
+    public boolean isMove() {
+        if (type == Type.MOVE)
+            return true;
+        else
+            return false;
+    }
+
     public int opCode() {
         return type.ordinal();
+    }
+    
+    public boolean sameExceptTemps(arch.Instruction i) {
+        if (!(i instanceof Instruction))
+            return false;
+        Instruction mi = (Instruction) i;
+        return (type == mi.type && frame == mi.frame && (imm == null ? mi.imm == null : imm.equals(mi.imm))
+                && target == mi.target && special == mi.special && syscallUse.equals(mi.syscallUse)
+                && syscallDef == mi.syscallDef && ra == mi.ra);
     }
 }
 

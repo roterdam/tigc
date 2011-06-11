@@ -9,9 +9,9 @@ JC2 = javac -d bin/ -cp bin/
 
 all: bin/Main.class
 
-debug: all bin/tester/SymbolTableTester.class bin/tester/ParserTester.class bin/tester/SemantTester.class bin/tester/Mid.class bin/tester/SimpleLinkedListTester.class bin/tester/GraphTester.class
+debug: all bin/tester/SymbolTableTester.class bin/tester/ParserTester.class bin/tester/SemantTester.class bin/tester/Mid.class bin/tester/SimpleLinkedListTester.class bin/tester/GraphTester.class bin/tester/BasicBlockOptimizerTester.class
 
-bin/Main.class: src/Main.java bin/parser/Parser.class bin/scanner/Scanner.class absyn bin/absyn/Printer.class bin/semant/Semant.class bin/notifier/Notifier.class intermediate bin/mips32/CodeGen.class
+bin/Main.class: src/Main.java bin/parser/Parser.class bin/scanner/Scanner.class absyn bin/absyn/Printer.class bin/semant/Semant.class bin/notifier/Notifier.class intermediate bin/mips32/CodeGen.class bin/mips32/Optimizer.class
 	$(JC) src/Main.java
 
 bin/tester/SymbolTableTester.class: src/tester/SymbolTableTester.java bin/symbol/Table.class bin/notifier/Notifier.class
@@ -31,6 +31,9 @@ bin/tester/SimpleLinkedListTester.class: bin/util/SimpleLinkedList.class src/tes
 
 bin/tester/GraphTester.class: bin/util/Graph.class bin/util/GraphNode.class src/tester/GraphTester.java
 	$(JC) src/tester/GraphTester.java
+
+bin/tester/BasicBlockOptimizerTester.class: bin/optimization/BasicBlockOptimizer.class bin/flow/LifeAnalysis.class bin/mips32/Instruction.class bin/mips32/InstructionGenerator.class bin/frame/Frame.class src/tester/BasicBlockOptimizerTester.java
+	$(JC) src/tester/BasicBlockOptimizerTester.java
 
 
 bin/symbol/Symbol.class: src/symbol/Symbol.java
@@ -228,6 +231,9 @@ bin/arch/Const.class: src/arch/Const.java
 bin/arch/Instruction.class: bin/frame/Frame.class bin/intermediate/Temp.class src/arch/Instruction.java
 	$(JC) src/arch/Instruction.java
 
+bin/arch/InstructionGenerator.class: bin/frame/Frame.class bin/arch/Instruction.class src/arch/InstructionGenerator.java
+	$(JC) src/arch/InstructionGenerator.java
+
 
 bin/parser/sym.class: src/parser/sym.java
 	$(JC) src/parser/sym.java
@@ -300,7 +306,7 @@ bin/util/Graph.class: src/util/Graph.java
 bin/util/GraphNode.class: src/util/GraphNode.java
 	$(JC) src/util/GraphNode.java
 
-bin/mips32/CodeGen.class: bin/intermediate/Temp.class bin/notifier/Notifier.class bin/intermediate/Label.class bin/intermediate/Temp.class bin/intermediate/IR.class bin/frame/Frame.class bin/util/Graph.class bin/mips32/InstructionList.class bin/intermediate/ThreeAddressCode.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/mips32/Instruction.class bin/arch/Const.class bin/regalloc/RegAlloc.class bin/symbol/Symbol.class bin/flow/FlowGraph.class bin/flow/LifeAnalysis.class bin/mips32/SpimAsm.class src/mips32/CodeGen.java
+bin/mips32/CodeGen.class: bin/intermediate/Temp.class bin/notifier/Notifier.class bin/intermediate/Label.class bin/intermediate/Temp.class bin/intermediate/IR.class bin/frame/Frame.class bin/util/Graph.class bin/mips32/InstructionList.class bin/intermediate/ThreeAddressCode.class bin/intermediate/MoveTAC.class bin/intermediate/OpTAC.class bin/intermediate/BinOpTAC.class bin/intermediate/UniOpTAC.class bin/intermediate/CallTAC.class bin/intermediate/CallExternTAC.class bin/intermediate/ReturnTAC.class bin/intermediate/GotoTAC.class bin/intermediate/BranchTAC.class bin/mips32/Instruction.class bin/arch/Const.class bin/regalloc/RegAlloc.class bin/symbol/Symbol.class bin/flow/FlowGraph.class bin/flow/LifeAnalysis.class bin/mips32/SpimAsm.class bin/mips32/Optimizer.class bin/mips32/Util.class src/mips32/CodeGen.java
 	$(JC) src/mips32/CodeGen.java
 
 bin/mips32/InstructionList.class: bin/regalloc/RegAlloc.class bin/mips32/Instruction.class src/mips32/InstructionList.java
@@ -309,8 +315,18 @@ bin/mips32/InstructionList.class: bin/regalloc/RegAlloc.class bin/mips32/Instruc
 bin/mips32/Instruction.class: bin/arch/Const.class bin/arch/Instruction.class bin/frame/Frame.class bin/regalloc/RegAlloc.class src/mips32/Instruction.java
 	$(JC) src/mips32/Instruction.java
 
+bin/mips32/InstructionGenerator.class: bin/mips32/Instruction.class bin/arch/InstructionGenerator.class src/mips32/InstructionGenerator.java
+	$(JC) src/mips32/InstructionGenerator.java
+
+bin/mips32/Optimizer.class: bin/optimization/BasicBlockOptimizer.class bin/flow/FlowGraph.class bin/flow/LifeAnalysis.class bin/mips32/Util.class src/mips32/Optimizer.java
+	$(JC) src/mips32/Optimizer.java
+
 bin/mips32/SpimAsm.class: bin/regalloc/Register.class bin/mips32/InstructionList.class src/mips32/SpimAsm.java
 	$(JC) src/mips32/SpimAsm.java
+
+bin/mips32/Util.class: bin/flow/FlowGraph.class bin/flow/BasicBlock.class bin/intermediate/Label.class src/mips32/Util.java
+	$(JC) src/mips32/Util.java
+
 
 bin/regalloc/Register.class: src/regalloc/Register.java
 	$(JC) src/regalloc/Register.java
@@ -324,8 +340,11 @@ bin/flow/BasicBlock.class: bin/intermediate/Temp.class bin/intermediate/Label.cl
 bin/flow/FlowGraph.class: bin/util/Graph.class bin/flow/BasicBlock.class src/flow/FlowGraph.java
 	$(JC) src/flow/FlowGraph.java
 
-bin/flow/LifeAnalysis.class: bin/util/Graph.class bin/arch/Instruction.class bin/intermediate/Temp.class bin/flow/FlowGraph.class src/flow/LifeAnalysis.java
+bin/flow/LifeAnalysis.class: bin/util/Graph.class bin/flow/BasicBlock.class bin/arch/Instruction.class bin/intermediate/Temp.class bin/flow/FlowGraph.class src/flow/LifeAnalysis.java
 	$(JC) src/flow/LifeAnalysis.java
+
+bin/optimization/BasicBlockOptimizer.class: bin/frame/Frame.class bin/arch/InstructionGenerator.class bin/flow/BasicBlock.class bin/flow/LifeAnalysis.class bin/intermediate/Temp.class bin/util/Graph.class bin/arch/Instruction.class src/optimization/BasicBlockOptimizer.java
+	$(JC) src/optimization/BasicBlockOptimizer.java
 
 clean:
 	rm -fR src/scanner/Scanner.java src/scanner/Scanner.java~ src/parser/Parser.java src/parser/sym.java bin/Main.class bin/parser bin/scanner bin/absyn bin/symbol bin/tester bin/type bin/semant bin/notifier bin/intermediate bin/arch bin/frame bin/util bin/mips32 bin/regalloc bin/flow

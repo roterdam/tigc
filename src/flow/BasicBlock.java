@@ -5,8 +5,8 @@ import intermediate.Label;
 import intermediate.Temp;
 import arch.Instruction;
 
-public class BasicBlock {
-    public LinkedList<Instruction> list = new LinkedList<Instruction>();
+public class BasicBlock implements Iterable<Instruction> {
+    private LinkedList<Instruction> list = new LinkedList<Instruction>();
     public ArrayList<Label> labels = new ArrayList<Label>();
 
     private Set<Temp> uses = new HashSet<Temp>();
@@ -19,6 +19,12 @@ public class BasicBlock {
         t.removeAll(defs);
         uses.addAll(t);
         defs.addAll(ins.def());
+    }
+
+    public void replace(BasicBlock block) {
+        list = new LinkedList<Instruction>();
+        for (Instruction i: block.list)
+            add(i);
     }
 
     public void add(Label label) {
@@ -38,6 +44,22 @@ public class BasicBlock {
 
     public Set<Temp> def() {
         return defs;
+    }
+
+    public Iterator<Instruction> iterator() {
+        return list.iterator();
+    }
+
+    public Iterator<Instruction> descendingIterator() {
+        return list.descendingIterator();
+    }
+
+    public boolean isInsEmpty() {
+        return list.isEmpty();
+    }
+
+    public Instruction getLast() {
+        return list.getLast();
     }
 }
 

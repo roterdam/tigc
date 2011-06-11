@@ -5,13 +5,37 @@ import java.util.*;
 
 public class FlowGraph {
     public Graph<BasicBlock> graph = new Graph<BasicBlock>();
+    Map<BasicBlock, BasicBlock> next = new HashMap<BasicBlock, BasicBlock>();
+    public BasicBlock entry = null;
 
-    public void add(BasicBlock block) {
+    public void add(BasicBlock block, boolean entry) {
         graph.addNode(block);
+        if (entry)
+            this.entry = block;
     }
 
-    public void addEdge(BasicBlock from, BasicBlock to) {
+    public void add(BasicBlock block) {
+        if (entry == null)
+            add(block, true);
+        else
+            add(block, false);
+    }
+
+    public void addEdge(BasicBlock from, BasicBlock to, boolean isNext) {
         graph.addEdge(from, to);
+        if (isNext)
+            addNext(from, to);
+    }
+
+    public void addNext(BasicBlock from, BasicBlock to) {
+        next.put(from, to);
+    }
+
+    public BasicBlock next(BasicBlock current) {
+        if (this.next.containsKey(current))
+            return this.next.get(current);
+        else
+            return null;
     }
 
     public Set<BasicBlock> nodes() {

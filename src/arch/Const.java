@@ -26,6 +26,16 @@ public class Const {
         else
             return name;
     }
+
+    public boolean equals(Object o) {
+        if (!(o instanceof Const))
+            return false;
+        Const x = (Const) o;
+        if (binded)
+            return c == x.c;
+        else
+            return name.equals(x.name);
+    }
 }
 
 

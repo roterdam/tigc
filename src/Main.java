@@ -7,6 +7,7 @@ import semant.Semant;
 import java.io.*;
 import intermediate.*;
 import mips32.CodeGen;
+import mips32.Optimizer;
 
 public class Main {
     public static String removeExtensionName(String filename) {
@@ -47,7 +48,8 @@ public class Main {
                     notifier.message("");
                     notifier.message("");*/
 
-                    CodeGen cg = new CodeGen(notifier, ir);
+                    Optimizer opt = new Optimizer();
+                    CodeGen cg = new CodeGen(notifier, ir, opt);
 
                     if (!notifier.hasError()) {
                         BufferedWriter writer = new BufferedWriter(new FileWriter(removeExtensionName(srcFile) + ".s"));
