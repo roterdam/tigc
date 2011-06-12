@@ -18,6 +18,8 @@ public class Instruction extends arch.Instruction {
     // during execution, $sp is src's frame pointer
     int special = 0;
 
+    boolean sideEffects = false;
+
     ArrayList<Temp> syscallUse = new ArrayList<Temp>();
     Temp syscallDef = null;
 
@@ -282,8 +284,10 @@ public class Instruction extends arch.Instruction {
                 break;
 
             case LW:
-                if (!map.containsKey(dst))
+                if (!map.containsKey(dst)) {
                     System.out.println(dst.toString());
+                    System.out.println(new Integer(map.size()).toString());
+                }
                 s += "lw " + map.get(dst).toString() + ", " + imm.toString() + "(" + map.get(src1).toString() + ")";
                 break;
 
@@ -363,7 +367,7 @@ public class Instruction extends arch.Instruction {
     }
 
     public boolean hasSideEffects() {
-        return type == Type.SYSCALL;
+        return type == Type.SYSCALL || sideEffects;
     }
 
     public boolean isJump() {
@@ -399,6 +403,7 @@ public class Instruction extends arch.Instruction {
         ret.syscallUse = this.syscallUse;
         ret.syscallDef = this.syscallDef;
         ret.ra = this.ra;
+        ret.sideEffects = this.sideEffects;
         if (this.type != Type.SYSCALL) {
             if (params.size() >= 1)
                 ret.src1 = params.get(0);
@@ -409,7 +414,9 @@ public class Instruction extends arch.Instruction {
     }
 
     public Instruction rewriteMove(Temp src) {
-        return MOVE(frame, dst, src);
+        Instruction ret = MOVE(frame, dst, src);
+        ret.sideEffects = sideEffects;
+        return ret;
     }
 
     public boolean isLoad() {
@@ -443,7 +450,7 @@ public class Instruction extends arch.Instruction {
         Instruction mi = (Instruction) i;
         return (type == mi.type && frame == mi.frame && (imm == null ? mi.imm == null : imm.equals(mi.imm))
                 && target == mi.target && special == mi.special && syscallUse.equals(mi.syscallUse)
-                && syscallDef == mi.syscallDef && ra == mi.ra);
+                && syscallDef == mi.syscallDef && ra == mi.ra && sideEffects == mi.sideEffects);
     }
 }
 

@@ -185,41 +185,6 @@ public class CodeGen {
 
         FlowGraph graph = Util.buildFlowGraph(list);
         LifeAnalysis life = new LifeAnalysis(graph);
-        /*for (BasicBlock b: graph.nodes()) {
-            notifier.message("Basic block " + new Integer(b.hashCode()).toString());
-            notifier.message("Successors:");
-            for (BasicBlock n: graph.succ(b))
-                notifier.message(new Integer(n.hashCode()).toString());
-            notifier.message("Predecessors:");
-            for (BasicBlock n: graph.pred(b))
-                notifier.message(new Integer(n.hashCode()).toString());
-
-            notifier.message("Codes:");
-            TempMap map = new TempMap();
-            for (arch.Instruction ins: b.list) {
-                notifier.message(((Instruction) ins).toString(map));
-            }
-
-            notifier.message("Use:");
-            for (Temp t: b.use())
-                notifier.message(t.toString());
-
-            notifier.message("Def:");
-            for (Temp t: b.def())
-                notifier.message(t.toString());
-
-            notifier.message("In:");
-            for (Temp t: life.in(b))
-                notifier.message(t.toString());
-
-            notifier.message("Out:");
-            for (Temp t: life.out(b))
-                notifier.message(t.toString());
-
-
-            notifier.message("");
-        }*/
-
         fillCallSaves(list, life);
 
         InstructionList nlist = new InstructionList();
@@ -229,9 +194,6 @@ public class CodeGen {
         }
 
         list = opt.optimize(nlist);
-
-        for (LabeledInstruction i: list)
-            notifier.message(i.toString());
 
         ArrayList<Register> registers = new ArrayList<Register>();
         registers.add(new Register("$v0"));
@@ -301,8 +263,10 @@ public class CodeGen {
             map.put(gp, new Register("$gp"));
             Set<Temp> spills = regAlloc.getSpill();
 
-            if (spills.size() == 0)
+            if (spills.size() == 0) {
+                
                 break;
+            }
 
             nlist = new InstructionList();
             for (LabeledInstruction li : list) {
@@ -563,6 +527,11 @@ public class CodeGen {
         }
     }
 
+    Instruction addSideEffect(Instruction ins) {
+        ins.sideEffects = true;
+        return ins;
+    }
+
     void addSpecialInstruction(InstructionList list, Frame frame, Temp dst, Access src, int special) {
         if (src instanceof Temp) {
             Instruction ins = Instruction.MOVE(frame, dst, (Temp) src);
@@ -600,7 +569,7 @@ public class CodeGen {
             save = list.addPlaceHolder();
         }
 
-        list.add(Instruction.ADDI(tac.frame, sp, sp, new Const(-wordLength)));
+        list.add(addSideEffect(Instruction.ADDI(tac.frame, sp, sp, new Const(-wordLength))));
 
         Iterator<Access> iter = tac.params.iterator();
         for (Temp t: callee.params)
@@ -611,13 +580,13 @@ public class CodeGen {
         list.add(Instruction.SW(tac.frame, callee.display, sp, new Const(-2 * wordLength)));
         list.add(Instruction.MOVE(tac.frame, callee.display, sp));
         list.add(Instruction.MOVE(tac.frame, fp, sp));
-        list.add(Instruction.ADDI(callee, sp, sp, callee.minusFrameSize));
+        list.add(addSideEffect(Instruction.ADDI(callee, sp, sp, callee.minusFrameSize)));
 
         list.add(Instruction.JAL(callee, tac.place, ra));
 
         LabeledInstruction retPlace = list.add(retLabel);
-        list.add(Instruction.ADDI(callee, sp, sp, callee.frameSize));
-        list.add(Instruction.LW(callee, fp, sp, new Const(0)));
+        list.add(addSideEffect(Instruction.ADDI(callee, sp, sp, callee.frameSize)));
+        list.add(addSideEffect(Instruction.LW(callee, fp, sp, new Const(0))));
         list.add(Instruction.LW(tac.frame, callee.display, sp, new Const(-2 * wordLength)));
         list.add(Instruction.LW(tac.frame, ra, sp, new Const(-wordLength)));
 
@@ -882,6 +851,9 @@ public class CodeGen {
         for (LabeledInstruction i: list) {
             if (i.instruction != null) {
                 for (Temp t: i.instruction.def()) {
+                    graph.addNode(t);
+                    for (Temp u: i.instruction.useList())
+                        graph.addNode(u);
                     for (Temp u: life.out(i.instruction)) {
                         if (t != u)
                             graph.addUndirectedEdge(t, u);

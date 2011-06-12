@@ -521,7 +521,7 @@ public class InlineOptimizer {
 
     int newNameCount = 0;
     Symbol newSymbol() {
-        return Symbol.symbol("s" + new Integer(newNameCount++).toString());
+        return Symbol.symbol("_s" + new Integer(newNameCount++).toString());
     }
 }
 

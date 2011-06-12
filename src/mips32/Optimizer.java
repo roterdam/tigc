@@ -79,11 +79,8 @@ public class Optimizer {
     }
 
     private InstructionList basicBlockOptimize(InstructionList list) {
-        System.out.println("a");
         FlowGraph flow = Util.buildFlowGraph(list);
-        System.out.println("b");
         LifeAnalysis life = new LifeAnalysis(flow);
-        System.out.println("c");
         InstructionGenerator gen = new InstructionGenerator();
         for (BasicBlock b: flow.nodes()) {
 /*            String s = "";
@@ -109,7 +106,6 @@ public class Optimizer {
             Scanner input = new Scanner(System.in);
             s = input.next();*/
         }
-        System.out.println("d");
         return list;
     }
 

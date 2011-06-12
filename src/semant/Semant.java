@@ -182,7 +182,7 @@ public class Semant {
 
         if (t == null) {
 
-            notifier.error("Undefined type: " + expr.type.toString()
+            notifier.error("Undefined type: " + origName(expr.type.toString())
                     + "; int array assumed.", expr.pos);
             return new TranslateResult(new IntermediateCodeList(), new type.Array(new type.Int()));
 
@@ -247,7 +247,7 @@ public class Semant {
     private TranslateResult transExpr(CallExpr expr) {
         Entry e = vt.get(expr.func);
         if (e == null) {
-            notifier.error("Undefined function " + expr.func.toString()
+            notifier.error("Undefined function " + origName(expr.func.toString())
                     + "; assumed return VOID", expr.pos);
             return new TranslateResult(null, new type.Void());
         }
@@ -474,7 +474,7 @@ public class Semant {
                 break;
 
             case NEQ:
-                op = BinOpTAC.BinOp.GEQ;
+                op = BinOpTAC.BinOp.NEQ;
                 break;
 
             case LT:
@@ -601,7 +601,7 @@ public class Semant {
     private TranslateResult transExpr(RecordExpr expr) {
         type.Type type = tt.get(expr.type);
         if (type == null) {
-            notifier.error(expr.type.toString() + " undefined; empty RECORD assumed", expr.pos);
+            notifier.error(origName(expr.type.toString()) + " undefined; empty RECORD assumed", expr.pos);
             return new TranslateResult(new IntermediateCodeList(), new type.Record(null, null, null));
         } else if (!(type.actual() instanceof type.Record)) {
             notifier.error(origName(type.toString()) + " is not a record; empty RECORD assumed", expr.pos);
@@ -705,7 +705,7 @@ public class Semant {
             if (vd.type != null) {
                 type.Type type = tt.get(vd.type);
                 if (type == null)
-                    notifier.error(vd.type.toString() + " undefined");
+                    notifier.error(origName(vd.type.toString()) + " undefined");
                 else {
                     Temp t = currentFrame.peek().addLocal();
 
@@ -780,7 +780,7 @@ public class Semant {
                     if (fd.type != null)
                         result = tt.get(fd.type);
                     if (result == null) {
-                        notifier.error(fd.type.toString() + " undefined; assumed INT", fd.pos);
+                        notifier.error(origName(fd.type.toString()) + " undefined; assumed INT", fd.pos);
                         result = new type.Int();
                     }
 
@@ -861,7 +861,7 @@ public class Semant {
             while (fields != null) {
                 type.Type fieldType = tt.get(fields.head.type);
                 if (fieldType == null) {
-                    notifier.error("Undefined type " + fields.head.type.toString()
+                    notifier.error("Undefined type " + origName(fields.head.type.toString())
                             + "; INT assumed", fields.head.pos);
                     fieldType = new type.Int();
                 }
@@ -884,7 +884,7 @@ public class Semant {
             NameType nt = (NameType) type;
             type.Type t = tt.get(nt.name);
             if (t == null) {
-                notifier.error("Undefined type " + nt.name.toString()
+                notifier.error("Undefined type " + origName(nt.name.toString())
                         + "; INT assumed", nt.pos);
                 t = new type.Int();
             }
@@ -893,7 +893,7 @@ public class Semant {
             ArrayType at = (ArrayType) type;
             type.Type t = tt.get(at.base);
             if (t == null) {
-                notifier.error("Undefined type " + at.base.toString()
+                notifier.error("Undefined type " + origName(at.base.toString())
                         + "; INT assumed", at.pos);
                 t = new type.Int();
             }
@@ -913,7 +913,7 @@ public class Semant {
             type.Type type = null;
             Access place = null;
             if (entry == null) {
-                notifier.error("Undefined variable " + vl.name.toString()
+                notifier.error("Undefined variable " + origName(vl.name.toString())
                         + "; type INT assumed", vl.pos);
                 type = new type.Int();
             } else if (entry instanceof FuncEntry) {
