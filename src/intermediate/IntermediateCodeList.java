@@ -6,8 +6,12 @@ import util.*;
 public class IntermediateCodeList implements Iterable<IntermediateCode> {
     private SimpleLinkedList<IntermediateCode> codes = new SimpleLinkedList<IntermediateCode>();
 
+    public void add(IntermediateCode i) {
+        codes.add(i);
+    }
+
     public void add(Label label, ThreeAddressCode tac, String comment) {
-        codes.add(new IntermediateCode(label, tac, comment));
+        add(new IntermediateCode(label, tac, comment));
     }
 
     public void addFirst(Label label, ThreeAddressCode tac, String comment) {
@@ -56,6 +60,10 @@ public class IntermediateCodeList implements Iterable<IntermediateCode> {
 
     public void addAll(IntermediateCodeList list) {
         codes.addAll(list.codes);
+    }
+
+    public void addAllClone(IntermediateCodeList list) {
+        codes.addAll(new SimpleLinkedList<IntermediateCode>(list.codes));
     }
 
     public Iterator<IntermediateCode> iterator() {

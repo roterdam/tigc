@@ -20,6 +20,12 @@ public class SimpleLinkedList<T> implements Iterable<T> {
         tail = null;
     }
 
+    public SimpleLinkedList(SimpleLinkedList<T> x) {
+        this();
+        for (T t: x)
+            add(t);
+    }
+
     public void add(T x) {
         if (head == null) {
             head = new SimpleLinkedNode<T>(x, null);

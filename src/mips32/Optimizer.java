@@ -3,15 +3,31 @@ package mips32;
 import flow.*;
 import java.util.*;
 import intermediate.Label;
+import intermediate.IR;
 import optimization.BasicBlockOptimizer;
 import intermediate.Temp;
 
 public class Optimizer {
     InstructionList optimize(InstructionList list) {
+        // Peephole optimize
+        //list = peepHoleOptimize(list);
+
+        // Jump zipping
+        list = jumpZipping(list);
+
+        // Basic Block Optimize
+        list = basicBlockOptimize(list);
+
+        // Remove dead code
+        list = removeDeadCode(list);
+
+        return list;
+    }
+
+    private InstructionList jumpZipping(InstructionList list) {
         // Rewrite blocks
         FlowGraph flow = Util.buildFlowGraph(list);
         list = rewrite(flow);
-
 
         // Jump zipping
         Map<Label, LabeledInstruction> labelMap = new HashMap<Label, LabeledInstruction>();
@@ -59,15 +75,18 @@ public class Optimizer {
                    nlist.add(li.instruction);
            }
         }
-        list = nlist;
+        return nlist;
+    }
 
-
-        // Basic Block Optimize
-        flow = Util.buildFlowGraph(list);
+    private InstructionList basicBlockOptimize(InstructionList list) {
+        System.out.println("a");
+        FlowGraph flow = Util.buildFlowGraph(list);
+        System.out.println("b");
         LifeAnalysis life = new LifeAnalysis(flow);
+        System.out.println("c");
         InstructionGenerator gen = new InstructionGenerator();
         for (BasicBlock b: flow.nodes()) {
-            String s = "";
+/*            String s = "";
             for (Temp t: life.out(b))
                 s += t.toString() + " ";
             System.out.println("Live variables: " + s);
@@ -76,10 +95,10 @@ public class Optimizer {
             System.out.println("Before optimization:");
             for (arch.Instruction i: b)
                 System.out.println(i.toString());
-
+*/
             BasicBlockOptimizer bbo = new BasicBlockOptimizer(b, life, gen);
             bbo.optimize();
-
+/*
             System.out.println("");
             System.out.println("After optimization:");
             for (arch.Instruction i: b)
@@ -87,15 +106,17 @@ public class Optimizer {
 
             System.out.println("");
 
-/*            Scanner input = new Scanner(System.in);
+            Scanner input = new Scanner(System.in);
             s = input.next();*/
         }
-        list = rewrite(flow);
+        System.out.println("d");
+        return list;
+    }
 
-
-        // Remove dead code
-        life = new LifeAnalysis(flow);
-        nlist = new InstructionList();
+    private InstructionList removeDeadCode(InstructionList list) {
+        FlowGraph flow = Util.buildFlowGraph(list);
+        LifeAnalysis life = new LifeAnalysis(flow);
+        InstructionList nlist = new InstructionList();
         for (LabeledInstruction i: list) {
             if (i.label != null)
                 nlist.add(i.label);
@@ -111,19 +132,17 @@ public class Optimizer {
                     nlist.add(i.instruction);
             }
         }
-        list = nlist;
-
-        return list;
+        return nlist; 
     }
 
-    void putCode(InstructionList list, BasicBlock block) {
+    private void putCode(InstructionList list, BasicBlock block) {
         for (Label l: block.labels)
             list.add(l);
         for (arch.Instruction i: block)
             list.add((Instruction) i);
     }
 
-    void rewriteRecursive(FlowGraph flow, BasicBlock current, Map<BasicBlock, BasicBlock> head, InstructionList res, Set<BasicBlock> visited) {
+    private void rewriteRecursive(FlowGraph flow, BasicBlock current, Map<BasicBlock, BasicBlock> head, InstructionList res, Set<BasicBlock> visited) {
         if (current == null || visited.contains(current))
             return;
 
@@ -149,7 +168,7 @@ public class Optimizer {
             rewriteRecursive(flow, b, head, res, visited);
     }
 
-    InstructionList rewrite(FlowGraph flow) {
+    private InstructionList rewrite(FlowGraph flow) {
         Map<BasicBlock, BasicBlock> prev = new HashMap<BasicBlock, BasicBlock>();
         for (BasicBlock b: flow.nodes())
             if (flow.next(b) != null)

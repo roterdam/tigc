@@ -6,6 +6,7 @@ import absyn.*;
 import java.util.*;
 import intermediate.*;
 import frame.*;
+import optimization.InlineOptimizer;
 import util.Graph;
 
 public class Semant {
@@ -16,6 +17,8 @@ public class Semant {
     private Stack<Label> breakStack;
     private Stack<Frame> currentFrame;
     private IR ir;
+
+    private Map<Symbol, Symbol> symbolName = null;
 
     private Symbol sym(String s) {
         return Symbol.symbol(s);
@@ -97,6 +100,11 @@ public class Semant {
     }
 
     public IR translate(absyn.Expr expr) {
+        InlineOptimizer opt = new InlineOptimizer();
+
+        symbolName = new HashMap<Symbol, Symbol>();
+        expr = opt.optimize(expr, symbolName);
+
         Frame globalFrame = new Frame(Label.newLabel("main"), null, true);
         ir = new IR(globalFrame);
         currentFrame.push(globalFrame);
@@ -111,7 +119,16 @@ public class Semant {
 
     private void checkType(type.Type left, type.Type right, int pos) {
         if (!right.fits(left))
-            notifier.error("Type mismatch, " + left.toString() + " needed, but " + right.toString() + " given", pos);
+            notifier.error("Type mismatch, " + origName(left.toString())
+                    + " needed, but " + origName(right.toString()) + " given", pos);
+    }
+
+    private String origName(String s) {
+        Symbol r = symbolName.get(sym(s));
+        if (r == null)
+            return s.toString();
+        else
+            return r.toString();
     }
 
     private SimpleAccess convertToSimpleAccess(Access access, IntermediateCodeList codes) {
@@ -165,12 +182,13 @@ public class Semant {
 
         if (t == null) {
 
-            notifier.error("Undefined type: " + expr.type.toString() + "; int array assumed.", expr.pos);
+            notifier.error("Undefined type: " + expr.type.toString()
+                    + "; int array assumed.", expr.pos);
             return new TranslateResult(new IntermediateCodeList(), new type.Array(new type.Int()));
 
         } else if (!(ta instanceof type.Array)) {
 
-            notifier.error(t.toString() + " is not an array type; int array assumed.");
+            notifier.error(origName(t.toString()) + " is not an array type; int array assumed.");
             return new TranslateResult(new IntermediateCodeList(), new type.Array(new type.Int()));
 
         } else {
@@ -229,11 +247,13 @@ public class Semant {
     private TranslateResult transExpr(CallExpr expr) {
         Entry e = vt.get(expr.func);
         if (e == null) {
-            notifier.error("Undefined function " + expr.func.toString() + "; assumed return VOID", expr.pos);
+            notifier.error("Undefined function " + expr.func.toString()
+                    + "; assumed return VOID", expr.pos);
             return new TranslateResult(null, new type.Void());
         }
         if (e instanceof VarEntry) {
-            notifier.error(expr.func.toString() + " is not a function; assumed return VOID", expr.pos);
+            notifier.error(origName(expr.func.toString()) +
+                    " is not a function; assumed return VOID", expr.pos);
             return new TranslateResult(null, new type.Void());
         }
 
@@ -563,8 +583,8 @@ public class Semant {
                 (la instanceof type.Array || la instanceof type.Record
                  || ra instanceof type.Array || ra instanceof type.Record)) {
             if (!(ltype.fits(rtype) || rtype.fits(ltype)))
-                notifier.error("Invalid comparation between " + ltype.toString()
-                        + " and " + rtype.toString(), expr.pos);
+                notifier.error("Invalid comparation between " + origName(ltype.toString())
+                        + " and " + origName(rtype.toString()), expr.pos);
 
             if (!notifier.hasError()) {
                 codes.addAll(lr.codes);
@@ -573,8 +593,8 @@ public class Semant {
             }
 
         } else
-            notifier.error("Invalid comparation between " + ltype.toString()
-                    + " and " + rtype.toString(), expr.pos);
+            notifier.error("Invalid comparation between " + origName(ltype.toString())
+                    + " and " + origName(rtype.toString()), expr.pos);
         return new TranslateResult(codes, new type.Int(), place);
     }
 
@@ -584,7 +604,7 @@ public class Semant {
             notifier.error(expr.type.toString() + " undefined; empty RECORD assumed", expr.pos);
             return new TranslateResult(new IntermediateCodeList(), new type.Record(null, null, null));
         } else if (!(type.actual() instanceof type.Record)) {
-            notifier.error(type.toString() + " is not a record; empty RECORD assumed", expr.pos);
+            notifier.error(origName(type.toString()) + " is not a record; empty RECORD assumed", expr.pos);
             return new TranslateResult(new IntermediateCodeList(), new type.Record(null, null, null));
         } else {
             type.Record p = (type.Record) type.actual();
@@ -689,8 +709,8 @@ public class Semant {
                 else {
                     Temp t = currentFrame.peek().addLocal();
 
-                    vt.put(vd.id, new VarEntry(type, t));
                     TranslateResult ir = transExpr(vd.value);
+                    vt.put(vd.id, new VarEntry(type, t));
                     checkType(type, ir.type, vd.value.pos);
                     
                     if (!notifier.hasError()) {
@@ -705,7 +725,7 @@ public class Semant {
                 type.Type type = ir.type;
                 type.Type a = type.actual();
                 if (a instanceof type.Nil || a instanceof type.Void) {
-                    notifier.error("Invalid initialize type: " + type.toString()
+                    notifier.error("Invalid initialize type: " + origName(type.toString())
                             + "; INT assumed");
                     type = new type.Int();
                 }
@@ -730,7 +750,8 @@ public class Semant {
                 if (set.add(td.name))
                     tt.put(td.name, new type.Name(td.name));
                 else
-                    notifier.error(td.name.toString() + " already defined in the same block", td.pos);
+                    notifier.error(origName(td.name.toString())
+                            + " already defined in the same block", td.pos);
             }
             for (p = expr; p != null && p.decl instanceof TypeDecl; p = p.next) {
                 TypeDecl td = (TypeDecl) p.decl;
@@ -739,7 +760,7 @@ public class Semant {
             for (p = expr; p != null && p.decl instanceof TypeDecl; p = p.next) {
                 TypeDecl td = (TypeDecl) p.decl;
                 if (((type.Name) tt.get(td.name)).isLoop()) {
-                    notifier.error("Type declaration loop found on " + td.name.toString()
+                    notifier.error("Type declaration loop found on " + origName(td.name.toString())
                             + "; INT assumed", td.pos);
                     ((type.Name) tt.get(td.name)).bind(new type.Int());
                 }
@@ -782,7 +803,7 @@ public class Semant {
                     vt.put(fd.name, entry);
                 }
                 else
-                    notifier.error(fd.name.toString() + " already defined in the same block", fd.pos);
+                    notifier.error(origName(fd.name.toString()) + " already defined in the same block", fd.pos);
             }
             for (p = expr; p != null && p.decl instanceof FuncDecl; p = p.next) {
                 FuncDecl fd = (FuncDecl) p.decl;
@@ -805,9 +826,13 @@ public class Semant {
 
                 if (!notifier.hasError()) {
                     codes.add(fe.frame.place);
+
                     codes.addAll(te.codes);
-                    if (!(fe.result.actual() instanceof type.Void))
-                        codes.add(new MoveTAC(currentFrame.peek(), te.place, fe.frame.returnValue));
+                    if (!(fe.result.actual() instanceof type.Void)) {
+                        MoveTAC rvAssign = new MoveTAC(currentFrame.peek(), te.place, fe.frame.returnValue);
+                        codes.add(rvAssign);
+                    }
+
                     codes.add(new ReturnTAC(currentFrame.peek()));
                 }
 
@@ -892,13 +917,13 @@ public class Semant {
                         + "; type INT assumed", vl.pos);
                 type = new type.Int();
             } else if (entry instanceof FuncEntry) {
-                notifier.error(vl.name.toString() + " is a function, not a variable; type INT assumed", vl.pos);
+                notifier.error(origName(vl.name.toString()) + " is a function, not a variable; type INT assumed", vl.pos);
                 type = new type.Int();
             } else {
                 type = ((VarEntry) entry).type;
                 place = ((VarEntry) entry).place;
                 if (assignment && !((VarEntry) entry).assignable)
-                    notifier.error(vl.name.toString() + " cannot be assigned here", vl.pos);
+                    notifier.error(origName(vl.name.toString()) + " cannot be assigned here", vl.pos);
             }
             return new TranslateResult(new IntermediateCodeList(), type, place);
 
@@ -917,7 +942,7 @@ public class Semant {
                 type.Record temp = (type.Record) ta;
                 ret = temp.findField(fl.id);
                 if (ret == null) {
-                    notifier.error(type.toString() + " do not have field " + fl.id
+                    notifier.error(origName(type.toString()) + " do not have field " + fl.id
                             + "; type INT assumed", fl.pos);
                     ret = new type.Int();
                 } else {
@@ -932,7 +957,7 @@ public class Semant {
 
                 }
             } else {
-                notifier.error(type.toString() + " is not a RECORD; type INT assumed", fl.pos);
+                notifier.error(origName(type.toString()) + " is not a RECORD; type INT assumed", fl.pos);
                 ret = new type.Int();
             }
             return new TranslateResult(codes, ret, place);
@@ -947,7 +972,7 @@ public class Semant {
             IntermediateCodeList codes = new IntermediateCodeList();
 
             if (!(ta instanceof type.Array)) {
-                notifier.error(type.toString() + " is not an ARRAY", sl.pos);
+                notifier.error(origName(type.toString()) + " is not an ARRAY", sl.pos);
                 ret = new type.Int();
             } else {
                 ret = ((type.Array) ta).base;

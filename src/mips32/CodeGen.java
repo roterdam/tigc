@@ -230,6 +230,9 @@ public class CodeGen {
 
         list = opt.optimize(nlist);
 
+        for (LabeledInstruction i: list)
+            notifier.message(i.toString());
+
         ArrayList<Register> registers = new ArrayList<Register>();
         registers.add(new Register("$v0"));
         registers.add(new Register("$v1"));
