@@ -318,7 +318,7 @@ bin/mips32/Instruction.class: bin/arch/Const.class bin/arch/Instruction.class bi
 bin/mips32/InstructionGenerator.class: bin/mips32/Instruction.class bin/arch/InstructionGenerator.class src/mips32/InstructionGenerator.java
 	$(JC) src/mips32/InstructionGenerator.java
 
-bin/mips32/Optimizer.class: bin/mips32/InstructionGenerator.class bin/intermediate/IR.class bin/optimization/BasicBlockOptimizer.class bin/flow/FlowGraph.class bin/flow/LifeAnalysis.class bin/mips32/Util.class src/mips32/Optimizer.java
+bin/mips32/Optimizer.class: bin/mips32/InstructionList.class bin/mips32/InstructionGenerator.class bin/intermediate/IR.class bin/optimization/BasicBlockOptimizer.class bin/flow/FlowGraph.class bin/flow/LifeAnalysis.class bin/mips32/Util.class src/mips32/Optimizer.java
 	$(JC) src/mips32/Optimizer.java
 
 bin/mips32/SpimAsm.class: bin/regalloc/Register.class bin/mips32/InstructionList.class src/mips32/SpimAsm.java

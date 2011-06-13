@@ -29,6 +29,7 @@ public class Instruction extends arch.Instruction {
         MOVE, ADD, ADDI,
             SUB, MUL,
             DIV, NEG,
+            SLL, SRL,
             SLT, SLTI,
             SLE, SEQ,
             SNE, SGT, SGE,
@@ -77,6 +78,14 @@ public class Instruction extends arch.Instruction {
 
     public static Instruction DIV(Frame frame, Temp dst, Temp src1, Temp src2) {
         return new Instruction(frame, Type.DIV, dst, src1, src2, null, null);
+    }
+
+    public static Instruction SLL(Frame frame, Temp dst, Temp src1, Const src2) {
+        return new Instruction(frame, Type.SLL, dst, src1, null, src2, null);
+    }
+
+    public static Instruction SRL(Frame frame, Temp dst, Temp src1, Const src2) {
+        return new Instruction(frame, Type.SRL, dst, src1, null, src2, null);
     }
 
     public static Instruction NEG(Frame frame, Temp dst, Temp src) {
@@ -237,6 +246,14 @@ public class Instruction extends arch.Instruction {
 
             case DIV:
                 s = "div " + map.get(dst).toString() + ", " + map.get(src1).toString() + ", " + map.get(src2).toString();
+                break;
+
+            case SLL:
+                s = "sll " + map.get(dst).toString() + ", " + map.get(src1).toString() + ", " + imm.toString();
+                break;
+
+            case SRL:
+                s = "srl " + map.get(dst).toString() + ", " + map.get(src1).toString() + ", " + imm.toString();
                 break;
 
             case NEG:

@@ -36,6 +36,10 @@ public class Const {
         else
             return name.equals(x.name);
     }
+
+    public int value() {
+        return c;
+    }
 }
 
 

@@ -193,7 +193,7 @@ public class CodeGen {
                 nlist.add(ins.label, ins.instruction);
         }
 
-        list = opt.optimize(nlist);
+        list = opt.optimize(nlist, zero);
 
         ArrayList<Register> registers = new ArrayList<Register>();
         registers.add(new Register("$v0"));

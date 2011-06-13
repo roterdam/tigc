@@ -6,11 +6,15 @@ import intermediate.Label;
 import intermediate.IR;
 import optimization.BasicBlockOptimizer;
 import intermediate.Temp;
+import arch.Const;
 
 public class Optimizer {
-    InstructionList optimize(InstructionList list) {
+    Temp zero = null;
+    InstructionList optimize(InstructionList list, Temp zero) {
+        this.zero = zero;
+
         // Peephole optimize
-        //list = peepHoleOptimize(list);
+        list = peepHoleOptimize(list);
 
         // Jump zipping
         list = jumpZipping(list);
@@ -21,6 +25,132 @@ public class Optimizer {
         // Remove dead code
         list = removeDeadCode(list);
 
+        return list;
+    }
+
+    private boolean isPowerOfTwo(int x){
+        if (x == 0)
+            return false;
+        else if (x < 0)
+            return isPowerOfTwo(-x);
+        else
+            return (x & (x - 1)) == 0;
+    }
+
+    private int log2(int x) {
+        if (x <= 0)
+            return -1;
+        for (int c = 0; c < 32; ++c) {
+            if (x == (1 << c))
+                return c;
+        }
+        return -1;
+    }
+
+    private InstructionList peepHoleOptimize(InstructionList list) {
+        LabeledInstruction li1 = list.head, li2 = null;
+        while (li1 != null) {
+            while (li1 != null && li1.instruction == null)
+                li1 = li1.next;
+            if (li1 == null)
+                break;
+
+            li2 = li1.next;
+            while (li2 != null && li2.instruction == null)
+                li2 = li2.next;
+            if (li2 == null)
+                break;
+
+            Instruction i1 = li1.instruction, i2 = li2.instruction;
+
+            if (i1.type == Instruction.Type.LI && i2.type == Instruction.Type.MUL
+                    && i1.imm.value() > 0 && isPowerOfTwo(i1.imm.value())) {
+                if (i1.dst == i2.src1) {
+                    i2.type = Instruction.Type.SLL;
+                    i2.src1 = i2.src2;
+                    i2.src2 = null;
+                    i2.imm = new Const(log2(i1.imm.value()));
+                } else if (i1.dst == i2.src2) {
+                    i2.type = Instruction.Type.SLL;
+                    i2.src2 = null;
+                    i2.imm = new Const(log2(i1.imm.value()));
+                }
+            } else if (i1.type == Instruction.Type.LI && i2.type == Instruction.Type.DIV
+                    && i1.imm.value() > 0 && isPowerOfTwo(i1.imm.value())) {
+                if (i1.dst == i2.src1) {
+                    i2.type = Instruction.Type.SRL;
+                    i2.src1 = i2.src2;
+                    i2.src2 = null;
+                    i2.imm = new Const(log2(i1.imm.value()));
+                } else if (i1.dst == i2.src2) {
+                    i2.type = Instruction.Type.SRL;
+                    i2.src2 = null;
+                    i2.imm = new Const(log2(i1.imm.value()));
+                }
+            } else if (i1.type == Instruction.Type.SLT && i2.type == Instruction.Type.BEQ
+                    && i1.dst == i2.src1 && i2.src2 == zero) {
+                i2.type = Instruction.Type.BGE;
+                i2.src1 = i1.src1;
+                i2.src2 = i1.src2;
+            } else if (i1.type == Instruction.Type.SLE && i2.type == Instruction.Type.BEQ
+                    && i1.dst == i2.src1 && i2.src2 == zero) {
+                i2.type = Instruction.Type.BGT;
+                i2.src1 = i1.src1;
+                i2.src2 = i1.src2;
+            } else if (i1.type == Instruction.Type.SEQ && i2.type == Instruction.Type.BEQ
+                    && i1.dst == i2.src1 && i2.src2 == zero) {
+                i2.type = Instruction.Type.BNE;
+                i2.src1 = i1.src1;
+                i2.src2 = i1.src2;
+            } else if (i1.type == Instruction.Type.SNE && i2.type == Instruction.Type.BEQ
+                    && i1.dst == i2.src1 && i2.src2 == zero) {
+                i2.type = Instruction.Type.BEQ;
+                i2.src1 = i1.src1;
+                i2.src2 = i1.src2;
+            } else if (i1.type == Instruction.Type.SGT && i2.type == Instruction.Type.BEQ
+                    && i1.dst == i2.src1 && i2.src2 == zero) {
+                i2.type = Instruction.Type.BLE;
+                i2.src1 = i1.src1;
+                i2.src2 = i1.src2;
+            } else if (i1.type == Instruction.Type.SGE && i2.type == Instruction.Type.BEQ
+                    && i1.dst == i2.src1 && i2.src2 == zero) {
+                i2.type = Instruction.Type.BLT;
+                i2.src1 = i1.src1;
+                i2.src2 = i1.src2;
+            } else if (i1.type == Instruction.Type.SLT && i2.type == Instruction.Type.BNE
+                    && i1.dst == i2.src1 && i2.src2 == zero) {
+                i2.type = Instruction.Type.BLT;
+                i2.src1 = i1.src1;
+                i2.src2 = i1.src2;
+            } else if (i1.type == Instruction.Type.SLE && i2.type == Instruction.Type.BNE
+                    && i1.dst == i2.src1 && i2.src2 == zero) {
+                i2.type = Instruction.Type.BLE;
+                i2.src1 = i1.src1;
+                i2.src2 = i1.src2;
+            } else if (i1.type == Instruction.Type.SEQ && i2.type == Instruction.Type.BNE
+                    && i1.dst == i2.src1 && i2.src2 == zero) {
+                i2.type = Instruction.Type.BEQ;
+                i2.src1 = i1.src1;
+                i2.src2 = i1.src2;
+            } else if (i1.type == Instruction.Type.SNE && i2.type == Instruction.Type.BNE
+                    && i1.dst == i2.src1 && i2.src2 == zero) {
+                i2.type = Instruction.Type.BNE;
+                i2.src1 = i1.src1;
+                i2.src2 = i1.src2;
+            } else if (i1.type == Instruction.Type.SGT && i2.type == Instruction.Type.BNE
+                    && i1.dst == i2.src1 && i2.src2 == zero) {
+                i2.type = Instruction.Type.BGT;
+                i2.src1 = i1.src1;
+                i2.src2 = i1.src2;
+            } else if (i1.type == Instruction.Type.SGE && i2.type == Instruction.Type.BNE
+                    && i1.dst == i2.src1 && i2.src2 == zero) {
+                i2.type = Instruction.Type.BGE;
+                i2.src1 = i1.src1;
+                i2.src2 = i1.src2;
+            }
+
+            li1 = li2;
+        }
         return list;
     }
 

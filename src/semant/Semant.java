@@ -342,10 +342,11 @@ public class Semant {
             codes.addAll(br.codes);
             codes.addAll(er.codes);
             codes.add(new MoveTAC(currentFrame.peek(), br.place, inductionVar));
+            codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.GT, inductionVar, er.place, endLoop));
             Label beginLoop = Label.newLabel();
             codes.add(beginLoop);
-            codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.GT, inductionVar, er.place, endLoop));
             codes.addAll(result.codes);
+            codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.EQ, inductionVar, er.place, endLoop));
             codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.ADD, inductionVar, new ConstAccess(1), inductionVar));
             codes.add(new GotoTAC(currentFrame.peek(), beginLoop));
             codes.add(endLoop);
