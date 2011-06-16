@@ -181,8 +181,8 @@ public class InlineOptimizer {
                 return new CallExpr(expr.pos, expr.func,
                         processExprList(expr.args));
             else
-                return new LetExpr(expr.pos, decls,
-                    new ExprList(body.pos, body, null));
+                return process(new LetExpr(expr.pos, decls,
+                    new ExprList(body.pos, body, null)));
         }
     }
 

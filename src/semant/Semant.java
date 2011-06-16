@@ -209,12 +209,15 @@ public class Semant {
                 codes.add(new CallExternTAC(currentFrame.peek(), sym("malloc"), tsize, null, null, tres));
 
                 Label l1 = Label.newLabel(), l2 = Label.newLabel();
-                Temp ti = currentFrame.peek().addLocal();
-                codes.add(new MoveTAC(currentFrame.peek(), new ConstAccess(0), ti));
-                codes.add(l1, new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.GEQ, ti, tsize, l2));
-                codes.add(new MoveTAC(currentFrame.peek(), init.place, new MemAccess(tres, ti)));
+                Temp ti = currentFrame.peek().addLocal(), temp = currentFrame.peek().addLocal();
+                codes.add(new MoveTAC(currentFrame.peek(), tres, ti));
+                codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.ADD, tres, tsize, temp));
+                codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.GEQ, ti, temp, l2));
+
+                codes.add(l1, new MoveTAC(currentFrame.peek(), init.place, new MemAccess(ti, new ConstAccess(0))));
                 codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.ADD, ti, ir.wordLength, ti));
-                codes.add(new GotoTAC(currentFrame.peek(), l1));
+                codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.NEQ, ti, temp, l1));
+
                 codes.add(l2);
             }
 
@@ -343,12 +346,13 @@ public class Semant {
             codes.addAll(er.codes);
             codes.add(new MoveTAC(currentFrame.peek(), br.place, inductionVar));
             codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.GT, inductionVar, er.place, endLoop));
+            Temp temp = currentFrame.peek().addLocal();
+            codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.ADD, er.place, new ConstAccess(1), temp));
             Label beginLoop = Label.newLabel();
             codes.add(beginLoop);
             codes.addAll(result.codes);
-            codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.EQ, inductionVar, er.place, endLoop));
             codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.ADD, inductionVar, new ConstAccess(1), inductionVar));
-            codes.add(new GotoTAC(currentFrame.peek(), beginLoop));
+            codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.NEQ, inductionVar, temp, beginLoop));
             codes.add(endLoop);
         }
 

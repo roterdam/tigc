@@ -41,6 +41,10 @@ class InstructionList implements Iterable<LabeledInstruction> {
         tail = null;
     }
 
+    public LabeledInstruction add(LabeledInstruction ins) {
+        return add(ins.label, ins.instruction);
+    }
+
     public LabeledInstruction add(Label label, Instruction ins) {
         LabeledInstruction r = new LabeledInstruction(label, ins, null);
         if (head == null) {

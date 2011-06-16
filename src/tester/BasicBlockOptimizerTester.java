@@ -23,16 +23,14 @@ public class BasicBlockOptimizerTester {
              d = frame.addLocal(), e = frame.addLocal(), f = frame.addLocal(), i = frame.addLocal();
 
         BasicBlock block = new BasicBlock();
-        block.add(Instruction.ADDI(frame, b, a, new Const(4)));
-        block.add(Instruction.LW(frame, d, b, new Const(0)));
-        block.add(Instruction.ADDI(frame, c, a, new Const(4)));
-        block.add(Instruction.LW(frame, e, c, new Const(0)));
+        block.add(Instruction.ADDI(frame, b, a, new Const(1)));
+        block.add(Instruction.MOVE(frame, a, b));
 
         System.out.println("BEFORE:");
         print(block);
 
         BasicBlock end = new BasicBlock();
-        end.add(Instruction.ADD(frame, a, d, e));
+        end.add(Instruction.ADD(frame, a, a, a));
 
         FlowGraph g = new FlowGraph();
         g.addEdge(block, end, false);

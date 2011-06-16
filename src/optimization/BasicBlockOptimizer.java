@@ -75,6 +75,20 @@ public class BasicBlockOptimizer {
         return null;
     }
 
+    Set<Temp> defSet(Instruction ins) {
+        Set<Temp> ret = ins.def();
+        if (ins.isStore())
+            ret.add(mem);
+        return ret;
+    }
+
+    Set<Temp> useSet(Instruction ins) {
+        Set<Temp> ret = ins.use();
+        if (ins.isLoad() || ins.isStore())
+            ret.add(mem);
+        return ret;
+    }
+
     VersionedTemp latestVersion(Temp t) {
         if (map.containsKey(t))
             return map.get(t);
@@ -144,6 +158,8 @@ public class BasicBlockOptimizer {
                 ret.add(gen.MOVE(frame, t, n.result));
                 n.result = t;
             }
+        }
+        for (Node n: sorted) {
             if (n.ins.size() == 0)
                 continue;
 
@@ -179,31 +195,61 @@ public class BasicBlockOptimizer {
         return true;
     }
 
-    void copyPropagation(BasicBlock block) {
+    int copyPropagation(BasicBlock block, List<Integer> moveFrom, List<Integer> moveAfter) {
         Map<Temp, Instruction> alias = new HashMap<Temp, Instruction>();
         Map<Instruction, Map<Temp, Instruction>> reaching = new HashMap<Instruction, Map<Temp, Instruction>>();
         Map<Temp, Instruction> now = new HashMap<Temp, Instruction>();
+
+        int count = 0;
+        Integer index = new Integer(0);
 
         BasicBlock ret = new BasicBlock();
         for (Instruction i: block) {
             reaching.put(i, new HashMap<Temp, Instruction>(now));
 
             List<Temp> newUse = new ArrayList<Temp>();
+            List<Integer> expect = new ArrayList<Integer>();
             for (Temp t: i.useList()) {
                 Temp r = t;
+                boolean success = false;
                 while (alias.containsKey(r)) {
-                    Temp candidate = alias.get(r).useList().get(0);
-                    Map<Temp, Instruction> then = reaching.get(alias.get(r));
+                    Instruction move = alias.get(r);
+                    Temp candidate = move.useList().get(0);
+                    Map<Temp, Instruction> then = reaching.get(move);
 
                     if ((!then.containsKey(candidate) && !now.containsKey(candidate)) ||
-                            then.get(candidate) == now.get(candidate))
+                            then.get(candidate) == now.get(candidate)) {
                         r = candidate;
-                    else
+                        success = true;
+                    } else {
+                        int state = 0;
+                        Integer index2 = new Integer(0);
+                        for (Instruction j: block) {
+                            if (j == move && state == 0)
+                                state = 1;
+                            else if (state == 1) {
+                                if (j == i) {
+                                    state = 2;
+                                    break;
+                                } else if (def(j) == candidate)
+                                    expect.add(index2);
+                            }
+                            index2 = new Integer(index2.intValue() + 1);
+                        }
+                        
                         break;
+                    }
                 }
                 newUse.add(r);
+                if (success)
+                    ++count;
             }
             ret.add(i.rewrite(def(i), newUse));
+
+            if (expect.size() == 1) {
+                moveFrom.add(expect.get(0));
+                moveAfter.add(index);
+            }
 
             if (i.isMove())
                 alias.put(def(i), i);
@@ -212,9 +258,72 @@ public class BasicBlockOptimizer {
                     alias.remove(t);
             }
             now.put(def(i), i);
+
+            index = new Integer(index.intValue() + 1);
         }
 
         block.replace(ret);
+        return count;
+    }
+
+    boolean codeMotion(BasicBlock block, int from, int after) {
+        int index = 0, state = 0;
+        Set<Temp> use1 = new HashSet<Temp>(),
+            def1 = new HashSet<Temp>(),
+            use2 = new HashSet<Temp>(),
+            def2 = new HashSet<Temp>();
+        for (Instruction i: block) {
+            if (index == from) {
+                if (i.hasSideEffects() || i.isJump())
+                    return false;
+                state = 1;
+                use1.addAll(useSet(i));
+                def1.addAll(defSet(i));
+            } else if (state == 1) {
+                if (i.isJump() || i.hasSideEffects())
+                    return false;
+                use2.addAll(useSet(i));
+                def2.addAll(defSet(i));
+                if (index == after) {
+                    break;
+                }
+            }
+            ++index;
+        }
+
+        Set<Temp> t = new HashSet<Temp>(use1);
+        t.retainAll(def2);
+        if (t.size() > 0)
+            return false;
+        t = new HashSet<Temp>(use2);
+        t.retainAll(def1);
+        if (t.size() > 0)
+            return false;
+        t = new HashSet<Temp>(def1);
+        t.retainAll(def2);
+        if (t.size() > 0)
+            return false;
+
+        index = 0;
+        BasicBlock ret = new BasicBlock();
+        Instruction own = null;
+        for (Instruction i: block) {
+            if (index < from)
+                ret.add(i);
+            else if (index == from)
+                own = i;
+            else if (index <= after) {
+                ret.add(i);
+                if (index == after)
+                    ret.add(own);
+            } else
+                ret.add(i);
+            ++index;
+        }
+
+        block.replace(ret);
+
+        return true;
     }
 
     public void optimize() {
@@ -273,7 +382,26 @@ public class BasicBlockOptimizer {
                     rewrite(ret, g, life.out(i), firstFrame);
             }
         }
-        copyPropagation(ret);
+        do {
+            ArrayList<Integer> moveFrom = new ArrayList<Integer>(),
+                moveAfter = new ArrayList<Integer>();
+            copyPropagation(ret, moveFrom, moveAfter);
+            if (moveFrom.size() == 0)
+                break;
+            else {
+                boolean restart = false;
+                for (int i = 0; i < moveFrom.size(); ++i) {
+                    if (codeMotion(ret, moveFrom.get(i).intValue(), moveAfter.get(i).intValue())) {
+                        restart = true;
+                        break;
+                    }
+                }
+                if (restart)
+                    continue;
+                else
+                    break;
+            }
+        } while (true);
         block.replace(ret);
     }
 }

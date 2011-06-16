@@ -7,11 +7,11 @@ public class IntermediateCodeList implements Iterable<IntermediateCode> {
     private SimpleLinkedList<IntermediateCode> codes = new SimpleLinkedList<IntermediateCode>();
 
     public void add(IntermediateCode i) {
-        codes.add(i);
+        add(i.label, i.tac, i.comment);
     }
 
     public void add(Label label, ThreeAddressCode tac, String comment) {
-        add(new IntermediateCode(label, tac, comment));
+        codes.add(new IntermediateCode(label, tac, comment));
     }
 
     public void addFirst(Label label, ThreeAddressCode tac, String comment) {

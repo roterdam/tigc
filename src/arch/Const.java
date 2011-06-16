@@ -20,6 +20,10 @@ public class Const {
         binded = true;
     }
 
+    public boolean isBinded() {
+        return binded;
+    }
+
     public String toString() {
         if (binded)
             return new Integer(c).toString();

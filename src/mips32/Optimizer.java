@@ -7,6 +7,7 @@ import intermediate.IR;
 import optimization.BasicBlockOptimizer;
 import intermediate.Temp;
 import arch.Const;
+import frame.Frame;
 
 public class Optimizer {
     Temp zero = null;
@@ -24,7 +25,7 @@ public class Optimizer {
 
         // Remove dead code
         list = removeDeadCode(list);
-
+        
         return list;
     }
 
@@ -72,18 +73,6 @@ public class Optimizer {
                     i2.imm = new Const(log2(i1.imm.value()));
                 } else if (i1.dst == i2.src2) {
                     i2.type = Instruction.Type.SLL;
-                    i2.src2 = null;
-                    i2.imm = new Const(log2(i1.imm.value()));
-                }
-            } else if (i1.type == Instruction.Type.LI && i2.type == Instruction.Type.DIV
-                    && i1.imm.value() > 0 && isPowerOfTwo(i1.imm.value())) {
-                if (i1.dst == i2.src1) {
-                    i2.type = Instruction.Type.SRL;
-                    i2.src1 = i2.src2;
-                    i2.src2 = null;
-                    i2.imm = new Const(log2(i1.imm.value()));
-                } else if (i1.dst == i2.src2) {
-                    i2.type = Instruction.Type.SRL;
                     i2.src2 = null;
                     i2.imm = new Const(log2(i1.imm.value()));
                 }
@@ -154,58 +143,195 @@ public class Optimizer {
         return list;
     }
 
-    private InstructionList jumpZipping(InstructionList list) {
-        // Rewrite blocks
-        FlowGraph flow = Util.buildFlowGraph(list);
-        list = rewrite(flow);
+    private LabeledInstruction nextInstruction(Map<Label, LabeledInstruction> labelMap, LabeledInstruction i) {
+        Set<LabeledInstruction> visited = new HashSet<LabeledInstruction>();
+        return nextInstructionWorker(labelMap, i, visited);
+    }
 
-        // Jump zipping
+    private LabeledInstruction nextInstructionWorker(Map<Label, LabeledInstruction> labelMap,
+            LabeledInstruction i, Set<LabeledInstruction> visited) {
+        if (visited.contains(i))
+            return i;
+        visited.add(i);
+
+        if (i.instruction != null) {
+            if (i.instruction.type != Instruction.Type.J)
+                return i;
+            else
+                return nextInstruction(labelMap, labelMap.get(i.instruction.target));
+        } else {
+            while (i != null) {
+                if (i.instruction != null)
+                    return nextInstruction(labelMap, i);
+                else
+                    i = i.next;
+            }
+            return null;
+        }
+    }
+
+    private Label findZip(Map<Label, LabeledInstruction> labelMap, Label target) {
+        Set<Label> visited = new HashSet<Label>();
+        return findZipWorker(labelMap, target, visited);
+    }
+
+    private Label findZipWorker(Map<Label, LabeledInstruction> labelMap, Label target, Set<Label> visited) {
+        if (visited.contains(target))
+            return target;
+        visited.add(target);
+
+        LabeledInstruction p = labelMap.get(target);
+        while (p != null) {
+            if (p.label != null)
+                target = p.label;
+            if (p.instruction == null)
+                p = p.next;
+            else if (p.instruction.type == Instruction.Type.J)
+                return findZipWorker(labelMap, p.instruction.target, visited);
+            else if (p.instruction.type == Instruction.Type.LI
+                    && p.instruction.imm.isBinded()) {
+                LabeledInstruction q = nextInstruction(labelMap, p.next);
+                if (q == null || !q.instruction.isBranch())
+                    break;
+
+                Label branchLabel = null;
+                LabeledInstruction t = q.next;
+                while (t != null) {
+                    if (t.label != null) {
+                        branchLabel = t.label;
+                        break;
+                    } else if (t.instruction != null) {
+                        break;
+                    }
+                    t = t.next;
+                }
+                if (branchLabel == null)
+                    break;
+
+                Instruction qi = q.instruction, pi = p.instruction;
+                if (qi.type == Instruction.Type.BEQ && ((qi.src1 == pi.dst
+                        && qi.src2 == zero) || (qi.src1 == zero && qi.src2 == pi.dst)))
+                    return findZipWorker(labelMap, pi.imm.value() == 0 ? qi.target : branchLabel, visited);
+                else if (qi.type == Instruction.Type.BNE && ((qi.src1 == pi.dst
+                        && qi.src2 == zero) || (qi.src1 == zero && qi.src2 == pi.dst)))
+                    return findZipWorker(labelMap, pi.imm.value() != 0 ? qi.target : branchLabel, visited);
+                else if ((qi.type == Instruction.Type.BLT && qi.src1 == pi.dst && qi.src2 == zero) ||
+                    (qi.type == Instruction.Type.BGT && qi.src1 == zero && qi.src2 == pi.dst))
+                    return findZipWorker(labelMap, pi.imm.value() < 0 ? qi.target : branchLabel, visited);
+                else if ((qi.type == Instruction.Type.BLE && qi.src1 == pi.dst && qi.src2 == zero) ||
+                    (qi.type == Instruction.Type.BGE && qi.src1 == zero && qi.src2 == pi.dst))
+                    return findZipWorker(labelMap, pi.imm.value() <= 0 ? qi.target : branchLabel, visited);
+                else if ((qi.type == Instruction.Type.BGT && qi.src1 == pi.dst && qi.src2 == zero) ||
+                    (qi.type == Instruction.Type.BLT && qi.src1 == zero && qi.src2 == pi.dst))
+                    return findZipWorker(labelMap, pi.imm.value() > 0 ? qi.target : branchLabel, visited);
+                else if ((qi.type == Instruction.Type.BGE && qi.src1 == pi.dst && qi.src2 == zero) ||
+                    (qi.type == Instruction.Type.BLE && qi.src1 == zero && qi.src2 == pi.dst))
+                    return findZipWorker(labelMap, pi.imm.value() >= 0 ? qi.target : branchLabel, visited);
+                else
+                    break;
+            } else
+                break;
+        }
+        return target;
+    }
+
+    private InstructionList addBranchLabels(InstructionList list) {
+        LabeledInstruction i = list.head;
+        InstructionList ret = new InstructionList();
+        while (i != null) {
+            ret.add(i);
+            if (i.instruction != null && i.instruction.isBranch()) {
+                LabeledInstruction p = i.next;
+                boolean nolabel = false;
+                while (p != null) {
+                    if (p.instruction != null) {
+                        if (p.label == null)
+                            nolabel = true;
+                        break;
+                    } else if (p.label != null)
+                        break;
+
+                    p = p.next;
+                }
+                if (nolabel)
+                    ret.add(Label.newLabel());
+            }
+
+            i = i.next;
+        }
+        return ret;
+    }
+
+    private InstructionList jumpZipping(InstructionList list) {
+        // Add branch labels
+        list = addBranchLabels(list);
+
+        // Build label map
         Map<Label, LabeledInstruction> labelMap = new HashMap<Label, LabeledInstruction>();
-        InstructionList nlist = new InstructionList();
         for (LabeledInstruction li: list) {
             if (li.label != null)
                 labelMap.put(li.label, li);
         }
-        for (LabeledInstruction li:list) {
+
+        // Jump zipping
+        for (LabeledInstruction li: list) {
+            if (li.instruction != null && li.instruction.target != null)
+                li.instruction.target = findZip(labelMap, li.instruction.target);
+        }
+
+        // Rewrite blocks
+        FlowGraph flow = Util.buildFlowGraph(list);
+        list = rewrite(flow);
+
+        // Remove direct jumps
+        LabeledInstruction li = list.head;
+        InstructionList nlist = new InstructionList();
+        while (li != null) {
             if (li.label != null)
                 nlist.add(li.label);
-            if (li.instruction != null && li.instruction.target != null) {
-                Label target = li.instruction.target;
-
-                LabeledInstruction p = labelMap.get(target);
+            
+            boolean direct = false;
+            if (li.instruction != null && li.instruction.type == Instruction.Type.J) {
+                LabeledInstruction p = li.next;
                 while (p != null) {
-                    if (p.label != null)
-                        target = p.label;
-
-                    if (p.instruction == null)
-                        p = p.next;
-                    else if (p.instruction.type == Instruction.Type.J)
-                        p = labelMap.get(p.instruction.target);
-                    else
+                    if (p.label == li.instruction.target) {
+                        direct = true;
                         break;
+                    } else if (p.instruction != null)
+                        break;
+                    p = p.next;
                 }
+            }
 
-                li.instruction.target = target;
+            if (!direct && li.instruction != null)
+                nlist.add(li.instruction);
 
-           }
-           if (li.instruction != null) {
-               boolean direct = false;
-               if (li.instruction.type == Instruction.Type.J) {
-                   LabeledInstruction p = li.next;
-                   while (p != null) {
-                       if (p.label == li.instruction.target) {
-                           direct = true;
-                           break;
-                       } else if (p.label != null || p.instruction != null)
-                           break;
-                       p = p.next;
-                   }
-               }
-               if (!direct)
-                   nlist.add(li.instruction);
-           }
+            li = li.next;
         }
-        return nlist;
+        list = nlist;
+
+        // Remove useless labels
+        Set<Label> usedLabels = new HashSet<Label>();
+        Set<Frame> usedFrames = new HashSet<Frame>();
+        for (LabeledInstruction lii: list) {
+            if (lii.instruction != null) {
+                if (lii.instruction.target != null)
+                    usedLabels.add(lii.instruction.target);
+                usedFrames.add(lii.instruction.frame);
+            }
+        }
+        for (Frame f: usedFrames)
+            usedLabels.addAll(f.returns);
+        nlist = new InstructionList();
+        for (LabeledInstruction lii: list) {
+            if (lii.label != null && usedLabels.contains(lii.label))
+                nlist.add(lii.label);
+            if (lii.instruction != null)
+                nlist.add(lii.instruction);
+        }
+        list = nlist;
+
+        return list;
     }
 
     private InstructionList basicBlockOptimize(InstructionList list) {
@@ -236,29 +362,39 @@ public class Optimizer {
             Scanner input = new Scanner(System.in);
             s = input.next();*/
         }
-        return list;
+        return rewrite(flow);
     }
 
     private InstructionList removeDeadCode(InstructionList list) {
-        FlowGraph flow = Util.buildFlowGraph(list);
-        LifeAnalysis life = new LifeAnalysis(flow);
-        InstructionList nlist = new InstructionList();
-        for (LabeledInstruction i: list) {
-            if (i.label != null)
-                nlist.add(i.label);
-            if (i.instruction != null) {
-                boolean dead = true;
-                for (Temp t: i.instruction.def())
-                    if (life.out(i.instruction).contains(t)) {
-                        dead = false;
-                        break;
-                    }
-                if (!dead || i.instruction.isJump()
-                        || i.instruction.isStore() || i.instruction.hasSideEffects())
-                    nlist.add(i.instruction);
+        FlowGraph flow = null;
+        LifeAnalysis life = null;
+        InstructionList nlist = null;
+        boolean change = false;
+        do {
+            change = false;
+            flow = Util.buildFlowGraph(list);
+            life = new LifeAnalysis(flow);
+            nlist = new InstructionList();
+            for (LabeledInstruction i: list) {
+                if (i.label != null)
+                    nlist.add(i.label);
+                if (i.instruction != null) {
+                    boolean dead = true;
+                    for (Temp t: i.instruction.def())
+                        if (life.out(i.instruction).contains(t)) {
+                            dead = false;
+                            break;
+                        }
+                    if (!dead || i.instruction.isJump()
+                            || i.instruction.isStore() || i.instruction.hasSideEffects())
+                        nlist.add(i.instruction);
+                    else
+                        change = true;
+                }
             }
-        }
-        return nlist; 
+            list = nlist;
+        } while (change);
+        return list;
     }
 
     private void putCode(InstructionList list, BasicBlock block) {

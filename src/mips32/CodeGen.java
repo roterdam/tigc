@@ -569,7 +569,7 @@ public class CodeGen {
             save = list.addPlaceHolder();
         }
 
-        list.add(addSideEffect(Instruction.ADDI(tac.frame, sp, sp, new Const(-wordLength))));
+        list.add(addSideEffect(Instruction.ADDIU(tac.frame, sp, sp, new Const(-wordLength))));
 
         Iterator<Access> iter = tac.params.iterator();
         for (Temp t: callee.params)
@@ -580,12 +580,12 @@ public class CodeGen {
         list.add(Instruction.SW(tac.frame, callee.display, sp, new Const(-2 * wordLength)));
         list.add(Instruction.MOVE(tac.frame, callee.display, sp));
         list.add(Instruction.MOVE(tac.frame, fp, sp));
-        list.add(addSideEffect(Instruction.ADDI(callee, sp, sp, callee.minusFrameSize)));
+        list.add(addSideEffect(Instruction.ADDIU(callee, sp, sp, callee.minusFrameSize)));
 
         list.add(Instruction.JAL(callee, tac.place, ra));
 
         LabeledInstruction retPlace = list.add(retLabel);
-        list.add(addSideEffect(Instruction.ADDI(callee, sp, sp, callee.frameSize)));
+        list.add(addSideEffect(Instruction.ADDIU(callee, sp, sp, callee.frameSize)));
         list.add(addSideEffect(Instruction.LW(callee, fp, sp, new Const(0))));
         list.add(Instruction.LW(tac.frame, callee.display, sp, new Const(-2 * wordLength)));
         list.add(Instruction.LW(tac.frame, ra, sp, new Const(-wordLength)));
@@ -593,7 +593,7 @@ public class CodeGen {
         if (callee.returnValue != null)
             addSpecialInstruction(list, tac.frame, tac.actualReturn, callee.returnValue, 2);
 
-        list.add(Instruction.ADDI(tac.frame, sp, sp, new Const(wordLength)));
+        list.add(Instruction.ADDIU(tac.frame, sp, sp, new Const(wordLength)));
 
         if (needsave) {
             restore = list.addPlaceHolder();

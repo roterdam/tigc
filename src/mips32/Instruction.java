@@ -26,7 +26,7 @@ public class Instruction extends arch.Instruction {
     Temp ra = null;
 
     static enum Type {
-        MOVE, ADD, ADDI,
+        MOVE, ADD, ADDI, ADDIU,
             SUB, MUL,
             DIV, NEG,
             SLL, SRL,
@@ -66,6 +66,10 @@ public class Instruction extends arch.Instruction {
 
     public static Instruction ADDI(Frame frame, Temp dst, Temp src1, Const src2) {
         return new Instruction(frame, Type.ADDI, dst, src1, null, src2, null);
+    }
+
+    public static Instruction ADDIU(Frame frame, Temp dst, Temp src1, Const src2) {
+        return new Instruction(frame, Type.ADDIU, dst, src1, null, src2, null);
     }
 
     public static Instruction SUB(Frame frame, Temp dst, Temp src1, Temp src2) {
@@ -234,6 +238,10 @@ public class Instruction extends arch.Instruction {
 
             case ADDI:
                 s = "addi " + map.get(dst).toString() + ", " + map.get(src1).toString() + ", " + imm.toString();
+                break;
+
+            case ADDIU:
+                s = "addiu " + map.get(dst).toString() + ", " + map.get(src1).toString() + ", " + imm.toString();
                 break;
 
             case SUB:
