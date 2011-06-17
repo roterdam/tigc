@@ -102,7 +102,7 @@ public class Semant {
     public IR translate(absyn.Expr expr) {
         InlineOptimizer opt = new InlineOptimizer();
         symbolName = new HashMap<Symbol, Symbol>();
-        //expr = opt.optimize(expr, symbolName);
+        expr = opt.optimize(expr, symbolName);
 
         Frame globalFrame = new Frame(Label.newLabel("main"), null, true);
         ir = new IR(globalFrame);

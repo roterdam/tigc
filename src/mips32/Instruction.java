@@ -388,7 +388,7 @@ public class Instruction extends arch.Instruction {
     }
 
     public boolean hasSideEffects() {
-        return type == Type.SYSCALL || sideEffects;
+        return type == Type.SYSCALL || sideEffects || special != 0;
     }
 
     public boolean isJump() {
@@ -437,6 +437,7 @@ public class Instruction extends arch.Instruction {
     public Instruction rewriteMove(Temp src) {
         Instruction ret = MOVE(frame, dst, src);
         ret.sideEffects = sideEffects;
+        ret.special = special;
         return ret;
     }
 

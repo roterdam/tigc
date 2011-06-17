@@ -13,8 +13,11 @@ public class LifeAnalysis {
     Map<Instruction, HashSet<Temp>> inIns = new HashMap<Instruction, HashSet<Temp>>(),
         outIns = new HashMap<Instruction, HashSet<Temp>>();
 
+    Set<Temp> liveDisplays = null;
+
     public LifeAnalysis(FlowGraph g) {
         this.g = g;
+        liveDisplays = new HashSet<Temp>();
         analysis();
     }
 
@@ -46,12 +49,26 @@ public class LifeAnalysis {
             return new HashSet<Temp>();
     }
 
+
     private void explore(BasicBlock b, Set<BasicBlock> visited, LinkedList<BasicBlock> blocks) {
         if (visited.contains(b))
             return;
 
         blocks.add(b);
         visited.add(b);
+
+        Set<Temp> displays = new HashSet<Temp>();
+        for (Instruction i: b)
+            if (i.frame != null && i.frame.display != null)
+                displays.add(i.frame.display);
+        for (Instruction i: b) {
+            for (Temp t: i.useList())
+                if (displays.contains(t))
+                    liveDisplays.add(t);
+            for (Temp t: i.def())
+                if (displays.contains(t))
+                    liveDisplays.add(t);
+        }
 
         for (BasicBlock n: g.pred(b))
             explore(n, visited, blocks);
@@ -67,7 +84,7 @@ public class LifeAnalysis {
         for (BasicBlock b: nodes) {
             explore(b, visited, blocks);
             inBlock.put(b, new HashSet<Temp>());
-            outBlock.put(b, new HashSet<Temp>());
+            outBlock.put(b, new HashSet<Temp>(liveDisplays));
         }
 
         boolean change = false;

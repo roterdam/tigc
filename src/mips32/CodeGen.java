@@ -192,8 +192,10 @@ public class CodeGen {
             if (ins.label != null || ins.instruction != null)
                 nlist.add(ins.label, ins.instruction);
         }
+        list = nlist;
 
-        list = opt.optimize(nlist, zero);
+
+        list = opt.optimize(list, zero);
 
         ArrayList<Register> registers = new ArrayList<Register>();
         registers.add(new Register("$v0"));
@@ -300,6 +302,8 @@ public class CodeGen {
                 f.updateFrameSize(wordLength);
             list = nlist;
         }
+        
+        list = opt.finalOptimize(list, map);
 
         SpimAsm asm = new SpimAsm(list, map, ir);
         asm.output(writer);
@@ -852,8 +856,21 @@ public class CodeGen {
         graph.addNode(v0);
         graph.addNode(a0);
         graph.addNode(a1);
+        boolean first = true;
         for (LabeledInstruction i: list) {
             if (i.instruction != null) {
+                if (first) {
+                    first = false;
+                    for (Temp u: life.in(i.instruction)) {
+                        if (u != fp)
+                            graph.addUndirectedEdge(fp, u);
+                        if (u != sp)
+                            graph.addUndirectedEdge(sp, u);
+                        if (u != ra)
+                            graph.addUndirectedEdge(ra, u);
+                    }
+                }
+
                 for (Temp u: i.instruction.useList())
                     graph.addNode(u);
                 for (Temp t: i.instruction.def()) {

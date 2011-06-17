@@ -16,6 +16,7 @@ public class InlineOptimizer {
     Stack<Symbol> currentFunction = null;
     Map<Symbol, Expr> functions = null;
     Map<Symbol, TypeFields> params = null;
+    Set<Symbol> inlines = null;
 
     public absyn.Expr optimize(absyn.Expr expr, Map<Symbol, Symbol> nameMap) {
         this.nameMap = nameMap;
@@ -25,9 +26,25 @@ public class InlineOptimizer {
         currentFunction = new Stack<Symbol>();
         functions = new HashMap<Symbol, Expr>();
         params = new HashMap<Symbol, TypeFields>();
+        inlines = new HashSet<Symbol>();
+
+        nameMap.put(Symbol.symbol("main"), Symbol.symbol("main"));
 
         currentFunction.push(Symbol.symbol("main"));
         preProcess(expr);
+
+        for (Symbol u: callingGraph.nodes()) {
+            boolean recursive = false;
+            for (Symbol v: callingGraph.succ(u))
+                if (callingGraph.isLoopEdge(u, v)) {
+                    recursive = true;
+                    break;
+                }
+            if (!recursive) {
+                inlines.add(u);
+            }
+        }
+
         Expr ret = process(expr);
         currentFunction.pop();
 
@@ -152,12 +169,10 @@ public class InlineOptimizer {
     }
 
     private absyn.Expr process(absyn.CallExpr expr) {
-        if (vt.get(expr.func) == null ||
-                callingGraph.isLoopEdge(currentFunction.peek(), expr.func)
-                || !functions.containsKey(expr.func)) {
+        if (vt.get(expr.func) == null || !inlines.contains(expr.func))
             return new CallExpr(expr.pos, expr.func,
                     processExprList(expr.args));
-        } else {
+        else {
             Expr body = functions.get(expr.func);
 
             boolean fail = false;

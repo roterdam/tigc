@@ -8,6 +8,7 @@ import optimization.BasicBlockOptimizer;
 import intermediate.Temp;
 import arch.Const;
 import frame.Frame;
+import regalloc.Register;
 
 public class Optimizer {
     Temp zero = null;
@@ -27,6 +28,24 @@ public class Optimizer {
         list = removeDeadCode(list);
         
         return list;
+    }
+
+    InstructionList finalOptimize(InstructionList list, Map<Temp, Register> map) {
+        InstructionList ret = new InstructionList();
+        for (LabeledInstruction i: list) {
+            if (i.label != null)
+                ret.add(i.label);
+
+            if (i.instruction != null) {
+                boolean dead = false;
+                if (i.instruction.type == Instruction.Type.MOVE
+                        && map.get(i.instruction.dst) == map.get(i.instruction.src1))
+                    dead = true;
+                if (!dead)
+                    ret.add(i.instruction);
+            }
+        }
+        return ret;
     }
 
     private boolean isPowerOfTwo(int x){
@@ -372,12 +391,12 @@ public class Optimizer {
             System.out.println("");
             System.out.println("Before optimization:");
             for (arch.Instruction i: b)
-                System.out.println(i.toString());
-*/
+                System.out.println(i.toString());*/
+
             BasicBlockOptimizer bbo = new BasicBlockOptimizer(b, life, gen);
             bbo.optimize();
-/*
-            System.out.println("");
+
+/*            System.out.println("");
             System.out.println("After optimization:");
             for (arch.Instruction i: b)
                 System.out.println(i.toString());
