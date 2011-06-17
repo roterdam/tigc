@@ -309,10 +309,6 @@ public class Instruction extends arch.Instruction {
                 break;
 
             case LW:
-                if (!map.containsKey(dst)) {
-                    System.out.println(dst.toString());
-                    System.out.println(new Integer(map.size()).toString());
-                }
                 s += "lw " + map.get(dst).toString() + ", " + imm.toString() + "(" + map.get(src1).toString() + ")";
                 break;
 

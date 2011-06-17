@@ -403,6 +403,12 @@ public class BasicBlockOptimizer {
             }
         } while (true);
         block.replace(ret);
+
+        ret = new BasicBlock();
+        for (Instruction i: block)
+            if (!(i.isMove() && i.useList().get(0) == def(i)))
+                ret.add(i);
+        block.replace(ret);
     }
 }
 

@@ -38,6 +38,20 @@ public class FlowGraph {
             return null;
     }
 
+    public void removeUnreachableCodes() {
+        boolean change = false;
+        do
+        {
+            change = false;
+            for (BasicBlock b: new HashSet<BasicBlock>(graph.heads()))
+                if (b != entry) {
+                    graph.removeNode(b);
+                    next.remove(b);
+                    change = true;
+                }
+        } while (change);
+    }
+
     public Set<BasicBlock> nodes() {
         return graph.nodes();
     }

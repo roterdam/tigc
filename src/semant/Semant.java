@@ -101,9 +101,8 @@ public class Semant {
 
     public IR translate(absyn.Expr expr) {
         InlineOptimizer opt = new InlineOptimizer();
-
         symbolName = new HashMap<Symbol, Symbol>();
-        expr = opt.optimize(expr, symbolName);
+        //expr = opt.optimize(expr, symbolName);
 
         Frame globalFrame = new Frame(Label.newLabel("main"), null, true);
         ir = new IR(globalFrame);
@@ -199,10 +198,21 @@ public class Semant {
             checkType(((type.Array)ta).base, init.type, expr.init.pos);
 
             IntermediateCodeList codes = new IntermediateCodeList();
-            codes.addAll(size.codes);
-            codes.addAll(init.codes);
             Temp tres = currentFrame.peek().addLocal();
             if (!notifier.hasError()) {
+                codes.addAll(size.codes);
+
+                /* Tiger does not support multi dimension arrays
+                 * I wrote this only for the test
+                 * REMOVE this later after
+                 */
+                boolean multi = false;
+                if (init.type.actual() instanceof type.Array || init.type.actual() instanceof type.Record)
+                    multi = true;
+
+                if (!multi)
+                    codes.addAll(init.codes);
+
                 Temp tsize = currentFrame.peek().addLocal();
                 codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.MUL, size.place, ir.wordLength, tsize));
                 ir.funcTable.put(sym("malloc"));
@@ -214,7 +224,10 @@ public class Semant {
                 codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.ADD, tres, tsize, temp));
                 codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.GEQ, ti, temp, l2));
 
-                codes.add(l1, new MoveTAC(currentFrame.peek(), init.place, new MemAccess(ti, new ConstAccess(0))));
+                codes.add(l1);
+                if (multi)
+                    codes.addAll(init.codes);
+                codes.add(new MoveTAC(currentFrame.peek(), init.place, new MemAccess(ti, new ConstAccess(0))));
                 codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.ADD, ti, ir.wordLength, ti));
                 codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.NEQ, ti, temp, l1));
 

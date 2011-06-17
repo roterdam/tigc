@@ -125,8 +125,7 @@ public class Graph<NodeType> {
         return ret;
     }
 
-    Set<NodeType> visited;
-    boolean isPath(NodeType from, NodeType to) {
+    boolean isPath(NodeType from, NodeType to, Set<NodeType> visited) {
         if (visited.contains(from))
             return false;
         visited.add(from);
@@ -134,7 +133,7 @@ public class Graph<NodeType> {
             return true;
         Set<NodeType> succs = succ(from);
         for (NodeType n: succs) {
-            if (isPath(n, to))
+            if (isPath(n, to, visited))
                 return true;
         }
         return false;
@@ -143,8 +142,8 @@ public class Graph<NodeType> {
     public boolean isLoopEdge(NodeType u, NodeType v) {
         if (!isEdge(u, v))
             return false;
-        visited = new LinkedHashSet<NodeType>();
-        return isPath(v, u);
+        Set<NodeType> visited = new LinkedHashSet<NodeType>();
+        return isPath(v, u, visited);
     }
 
     public List<NodeType> topologicalSort() {

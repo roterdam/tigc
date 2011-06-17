@@ -23,8 +23,7 @@ public class BasicBlockOptimizerTester {
              d = frame.addLocal(), e = frame.addLocal(), f = frame.addLocal(), i = frame.addLocal();
 
         BasicBlock block = new BasicBlock();
-        block.add(Instruction.ADDI(frame, b, a, new Const(1)));
-        block.add(Instruction.MOVE(frame, a, b));
+        block.add(Instruction.MOVE(frame, a, a));
 
         System.out.println("BEFORE:");
         print(block);

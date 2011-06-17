@@ -175,6 +175,52 @@ public class Optimizer {
         return findZipWorker(labelMap, target, visited);
     }
 
+    private Label findBranchZip(Map<Label, LabeledInstruction> labelMap, LabeledInstruction li) {
+        if (li.instruction == null)
+            return null;
+
+        LabeledInstruction q = nextInstruction(labelMap, li.next);
+        if (q == null || !q.instruction.isBranch())
+            return null;
+
+        Label branchLabel = null;
+        LabeledInstruction t = q.next;
+        while (t != null) {
+            if (t.label != null) {
+                branchLabel = t.label;
+                break;
+            } else if (t.instruction != null)
+                break;
+            else
+                t = t.next;
+        }
+
+        if (branchLabel == null)
+            return null;
+
+        Instruction qi = q.instruction, pi = li.instruction;
+        if (qi.type == Instruction.Type.BEQ && ((qi.src1 == pi.dst
+                        && qi.src2 == zero) || (qi.src1 == zero && qi.src2 == pi.dst)))
+            return (pi.imm.value() == 0 ? qi.target : branchLabel);
+        else if (qi.type == Instruction.Type.BNE && ((qi.src1 == pi.dst
+                        && qi.src2 == zero) || (qi.src1 == zero && qi.src2 == pi.dst)))
+            return (pi.imm.value() != 0 ? qi.target : branchLabel);
+        else if ((qi.type == Instruction.Type.BLT && qi.src1 == pi.dst && qi.src2 == zero) ||
+                (qi.type == Instruction.Type.BGT && qi.src1 == zero && qi.src2 == pi.dst))
+            return (pi.imm.value() < 0 ? qi.target : branchLabel);
+        else if ((qi.type == Instruction.Type.BLE && qi.src1 == pi.dst && qi.src2 == zero) ||
+                (qi.type == Instruction.Type.BGE && qi.src1 == zero && qi.src2 == pi.dst))
+            return (pi.imm.value() <= 0 ? qi.target : branchLabel);
+        else if ((qi.type == Instruction.Type.BGT && qi.src1 == pi.dst && qi.src2 == zero) ||
+                (qi.type == Instruction.Type.BLT && qi.src1 == zero && qi.src2 == pi.dst))
+            return (pi.imm.value() > 0 ? qi.target : branchLabel);
+        else if ((qi.type == Instruction.Type.BGE && qi.src1 == pi.dst && qi.src2 == zero) ||
+                (qi.type == Instruction.Type.BLE && qi.src1 == zero && qi.src2 == pi.dst))
+            return (pi.imm.value() >= 0 ? qi.target : branchLabel);
+        else
+            return null;
+    }
+
     private Label findZipWorker(Map<Label, LabeledInstruction> labelMap, Label target, Set<Label> visited) {
         if (visited.contains(target))
             return target;
@@ -190,45 +236,12 @@ public class Optimizer {
                 return findZipWorker(labelMap, p.instruction.target, visited);
             else if (p.instruction.type == Instruction.Type.LI
                     && p.instruction.imm.isBinded()) {
-                LabeledInstruction q = nextInstruction(labelMap, p.next);
-                if (q == null || !q.instruction.isBranch())
+                
+                Label newTarget = findBranchZip(labelMap, p);
+                if (newTarget == null)
                     break;
 
-                Label branchLabel = null;
-                LabeledInstruction t = q.next;
-                while (t != null) {
-                    if (t.label != null) {
-                        branchLabel = t.label;
-                        break;
-                    } else if (t.instruction != null) {
-                        break;
-                    }
-                    t = t.next;
-                }
-                if (branchLabel == null)
-                    break;
-
-                Instruction qi = q.instruction, pi = p.instruction;
-                if (qi.type == Instruction.Type.BEQ && ((qi.src1 == pi.dst
-                        && qi.src2 == zero) || (qi.src1 == zero && qi.src2 == pi.dst)))
-                    return findZipWorker(labelMap, pi.imm.value() == 0 ? qi.target : branchLabel, visited);
-                else if (qi.type == Instruction.Type.BNE && ((qi.src1 == pi.dst
-                        && qi.src2 == zero) || (qi.src1 == zero && qi.src2 == pi.dst)))
-                    return findZipWorker(labelMap, pi.imm.value() != 0 ? qi.target : branchLabel, visited);
-                else if ((qi.type == Instruction.Type.BLT && qi.src1 == pi.dst && qi.src2 == zero) ||
-                    (qi.type == Instruction.Type.BGT && qi.src1 == zero && qi.src2 == pi.dst))
-                    return findZipWorker(labelMap, pi.imm.value() < 0 ? qi.target : branchLabel, visited);
-                else if ((qi.type == Instruction.Type.BLE && qi.src1 == pi.dst && qi.src2 == zero) ||
-                    (qi.type == Instruction.Type.BGE && qi.src1 == zero && qi.src2 == pi.dst))
-                    return findZipWorker(labelMap, pi.imm.value() <= 0 ? qi.target : branchLabel, visited);
-                else if ((qi.type == Instruction.Type.BGT && qi.src1 == pi.dst && qi.src2 == zero) ||
-                    (qi.type == Instruction.Type.BLT && qi.src1 == zero && qi.src2 == pi.dst))
-                    return findZipWorker(labelMap, pi.imm.value() > 0 ? qi.target : branchLabel, visited);
-                else if ((qi.type == Instruction.Type.BGE && qi.src1 == pi.dst && qi.src2 == zero) ||
-                    (qi.type == Instruction.Type.BLE && qi.src1 == zero && qi.src2 == pi.dst))
-                    return findZipWorker(labelMap, pi.imm.value() >= 0 ? qi.target : branchLabel, visited);
-                else
-                    break;
+                return findZipWorker(labelMap, newTarget, visited);
             } else
                 break;
         }
@@ -274,9 +287,20 @@ public class Optimizer {
         }
 
         // Jump zipping
-        for (LabeledInstruction li: list) {
-            if (li.instruction != null && li.instruction.target != null)
-                li.instruction.target = findZip(labelMap, li.instruction.target);
+        LabeledInstruction li = list.head;
+        while (li != null) {
+            if (li.instruction != null) {
+                if (li.instruction.target != null)
+                    li.instruction.target = findZip(labelMap, li.instruction.target);
+                else if (li.instruction.type == Instruction.Type.LI) {
+                    Label t = findBranchZip(labelMap, li);
+                    if (t != null) {
+                        LabeledInstruction on = li.next;
+                        li.next = new LabeledInstruction(null, Instruction.J(li.instruction.frame, t), on);
+                    }
+                }
+            }
+            li = li.next;
         }
 
         // Rewrite blocks
@@ -284,7 +308,7 @@ public class Optimizer {
         list = rewrite(flow);
 
         // Remove direct jumps
-        LabeledInstruction li = list.head;
+        li = list.head;
         InstructionList nlist = new InstructionList();
         while (li != null) {
             if (li.label != null)
@@ -336,6 +360,7 @@ public class Optimizer {
 
     private InstructionList basicBlockOptimize(InstructionList list) {
         FlowGraph flow = Util.buildFlowGraph(list);
+        flow.removeUnreachableCodes();
         LifeAnalysis life = new LifeAnalysis(flow);
         InstructionGenerator gen = new InstructionGenerator();
         for (BasicBlock b: flow.nodes()) {

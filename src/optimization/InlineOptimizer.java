@@ -154,10 +154,10 @@ public class InlineOptimizer {
     private absyn.Expr process(absyn.CallExpr expr) {
         if (vt.get(expr.func) == null ||
                 callingGraph.isLoopEdge(currentFunction.peek(), expr.func)
-                || !functions.containsKey(expr.func))
+                || !functions.containsKey(expr.func)) {
             return new CallExpr(expr.pos, expr.func,
                     processExprList(expr.args));
-        else {
+        } else {
             Expr body = functions.get(expr.func);
 
             boolean fail = false;
@@ -180,9 +180,13 @@ public class InlineOptimizer {
             if (fail)
                 return new CallExpr(expr.pos, expr.func,
                         processExprList(expr.args));
-            else
-                return process(new LetExpr(expr.pos, decls,
+            else {
+                currentFunction.push(expr.func);
+                Expr ret = process(new LetExpr(expr.pos, decls,
                     new ExprList(body.pos, body, null)));
+                currentFunction.pop();
+                return ret;
+            }
         }
     }
 
@@ -399,6 +403,7 @@ public class InlineOptimizer {
 
                 vt.beginScope();
                 TypeFields tf = fd.params;
+                params.put(fd.name, tf);
                 while (tf != null) {
                     vt.put(tf.head.name, newSymbol());
                     nameMap.put(vt.get(tf.head.name), tf.head.name);
@@ -406,7 +411,6 @@ public class InlineOptimizer {
 
                     tf = tf.next;
                 }
-                params.put(fd.name, tf);
 
                 currentFunction.push(fd.name);
                 preProcess(fd.body);

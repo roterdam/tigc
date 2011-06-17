@@ -263,10 +263,8 @@ public class CodeGen {
             map.put(gp, new Register("$gp"));
             Set<Temp> spills = regAlloc.getSpill();
 
-            if (spills.size() == 0) {
-                
+            if (spills.size() == 0)
                 break;
-            }
 
             nlist = new InstructionList();
             for (LabeledInstruction li : list) {
@@ -444,7 +442,8 @@ public class CodeGen {
                         else
                             list.add(Instruction.ADDI(tac.frame, (Temp) tac.dst,
                                         (Temp) tac.op1, processNegConstAccess((ConstAccess) tac.op2)));
-                    } else if (tac.op1 instanceof ConstAccess && tac.op2 instanceof Temp) {
+                    } else if (((BinOpTAC) tac).op == BinOpTAC.BinOp.ADD
+                                && tac.op1 instanceof ConstAccess && tac.op2 instanceof Temp) {
                         imm = true;
                         generate(list, new BinOpTAC(tac.frame, BinOpTAC.BinOp.ADD,
                                     tac.op2, tac.op1, (Temp) tac.dst));
@@ -571,7 +570,13 @@ public class CodeGen {
 
         list.add(addSideEffect(Instruction.ADDIU(tac.frame, sp, sp, new Const(-wordLength))));
 
-        Iterator<Access> iter = tac.params.iterator();
+        List<Temp> tParams = new ArrayList<Temp>();
+        for (Access t: tac.params) {
+            Temp v = tac.frame.addLocal();
+            generate(list, new MoveTAC(tac.frame, t, v));
+            tParams.add(v);
+        }
+        Iterator<Temp> iter = tParams.iterator();
         for (Temp t: callee.params)
             addSpecialInstruction(list, tac.frame, t, iter.next(), 1);
 
@@ -623,6 +628,7 @@ public class CodeGen {
             list.add(Instruction.LI(tac.frame, a1, new Const(2)));
             list.add(Instruction.LI(tac.frame, v0, new Const(8)));
             list.add(Instruction.SYSCALL(tac.frame, v0, a0, a1, 8));
+            generate(list, new MoveTAC(tac.frame, a0, (AssignableAccess) tac.dst));
 
         } else if (tac.place == sym("ord")) {
 
@@ -639,16 +645,16 @@ public class CodeGen {
         } else if (tac.place == sym("chr")) {
 
             Label exit = Label.newLabel(), end = Label.newLabel();
-            Temp t1 = tac.frame.addLocal(), t2 = toTemp(list, tac.frame, tac.param1), t255 = tac.frame.addLocal();
-            list.add(Instruction.LI(tac.frame, t255, new Const(255)));
-            list.add(Instruction.BGT(tac.frame, t2, t255, exit));
+            Temp t1 = tac.frame.addLocal(), t2 = toTemp(list, tac.frame, tac.param1), t256 = tac.frame.addLocal();
+            list.add(Instruction.LI(tac.frame, t256, new Const(256)));
+            list.add(Instruction.BGE(tac.frame, t2, t256, exit));
             list.add(Instruction.BLT(tac.frame, t2, zero, exit));
             generate(list, new CallExternTAC(tac.frame, sym("malloc"), new ConstAccess(2),
                         null, null, t1));
             list.add(Instruction.SB(tac.frame, t2, t1, new Const(0)));
-            list.add(Instruction.SB(tac.frame, zero, t1, new Const(0)));
+            list.add(Instruction.SB(tac.frame, zero, t1, new Const(1)));
             generate(list, new MoveTAC(tac.frame, t1, (AssignableAccess) tac.dst));
-            list.add(Instruction.J(tac.frame, exit));
+            list.add(Instruction.J(tac.frame, end));
             list.add(exit);
             generate(list, new CallExternTAC(tac.frame, sym("exit"), new ConstAccess(0), null, null, null));
             list.add(end);
@@ -658,16 +664,15 @@ public class CodeGen {
             Temp res = tac.frame.addLocal(),
                  chr = tac.frame.addLocal(),
                  p = tac.frame.addLocal();
-            Label start = Label.newLabel(), end = Label.newLabel();
+            Label start = Label.newLabel();
             generate(list, new MoveTAC(tac.frame, tac.param1, p));
             list.add(Instruction.MOVE(tac.frame, res, zero));
             list.add(start);
             list.add(Instruction.LB(tac.frame, chr, p, new Const(0)));
-            list.add(Instruction.BEQ(tac.frame, chr, zero, end));
-            list.add(Instruction.ADDI(tac.frame, p, p, new Const(1)));
+            list.add(Instruction.ADDIU(tac.frame, p, p, new Const(1)));
             list.add(Instruction.ADDI(tac.frame, res, res, new Const(1)));
-            list.add(Instruction.J(tac.frame, start));
-            list.add(end);
+            list.add(Instruction.BNE(tac.frame, chr, zero, start));
+            list.add(Instruction.ADDI(tac.frame, res, res, new Const(-1)));
             generate(list, new MoveTAC(tac.frame, res, (AssignableAccess) tac.dst));
 
         } else if (tac.place == sym("substring")) {
@@ -686,15 +691,16 @@ public class CodeGen {
             generate(list, new BinOpTAC(tac.frame, BinOpTAC.BinOp.ADD, tac.param1, tac.param2, p));
             list.add(Instruction.MOVE(tac.frame, q, res));
 
-            list.add(begin);
             list.add(Instruction.BEQ(tac.frame, size, zero, exit));
+
+            list.add(begin);
             list.add(Instruction.LB(tac.frame, t, p, new Const(0)));
             list.add(Instruction.BEQ(tac.frame, t, zero, exit));
             list.add(Instruction.SB(tac.frame, t, q, new Const(0)));
-            list.add(Instruction.ADDI(tac.frame, q, q, new Const(1)));
-            list.add(Instruction.ADDI(tac.frame, p, p, new Const(1)));
+            list.add(Instruction.ADDIU(tac.frame, q, q, new Const(1)));
+            list.add(Instruction.ADDIU(tac.frame, p, p, new Const(1)));
             list.add(Instruction.ADDI(tac.frame, size, size, new Const(-1)));
-            list.add(Instruction.J(tac.frame, begin));
+            list.add(Instruction.BNE(tac.frame, size, zero, begin));
 
             list.add(exit);
             list.add(Instruction.SB(tac.frame, zero, q, new Const(0)));
@@ -720,25 +726,23 @@ public class CodeGen {
 
             list.add(begin1);
             list.add(Instruction.LB(tac.frame, t, p, new Const(0)));
-            list.add(Instruction.BEQ(tac.frame, t, zero, end1));
             list.add(Instruction.SB(tac.frame, t, q, new Const(0)));
-            list.add(Instruction.ADDI(tac.frame, p, p, new Const(1)));
-            list.add(Instruction.ADDI(tac.frame, q, q, new Const(1)));
-            list.add(Instruction.J(tac.frame, begin1));
+            list.add(Instruction.ADDIU(tac.frame, p, p, new Const(1)));
+            list.add(Instruction.ADDIU(tac.frame, q, q, new Const(1)));
+            list.add(Instruction.BNE(tac.frame, t, zero, begin1));
 
             list.add(end1);
             list.add(Instruction.MOVE(tac.frame, p, b2));
+            list.add(Instruction.ADDIU(tac.frame, q, q, new Const(-1)));
 
             list.add(begin2);
             list.add(Instruction.LB(tac.frame, t, p, new Const(0)));
-            list.add(Instruction.BEQ(tac.frame, t, zero, end2));
             list.add(Instruction.SB(tac.frame, t, q, new Const(0)));
-            list.add(Instruction.ADDI(tac.frame, p, p, new Const(1)));
-            list.add(Instruction.ADDI(tac.frame, q, q, new Const(1)));
-            list.add(Instruction.J(tac.frame, begin2));
+            list.add(Instruction.ADDIU(tac.frame, p, p, new Const(1)));
+            list.add(Instruction.ADDIU(tac.frame, q, q, new Const(1)));
+            list.add(Instruction.BNE(tac.frame, t, zero, begin2));
 
             list.add(end2);
-            list.add(Instruction.SB(tac.frame, zero, q, new Const(0)));
             generate(list, new MoveTAC(tac.frame, res, (AssignableAccess) tac.dst));
 
         } else if (tac.place == sym("not")) {
@@ -781,8 +785,8 @@ public class CodeGen {
             list.add(Instruction.BGT(tac.frame, t1, t2, great));
             list.add(Instruction.BLT(tac.frame, t1, t2, less));
             list.add(Instruction.BEQ(tac.frame, t1, zero, equal));
-            list.add(Instruction.ADDI(tac.frame, p1, p1, new Const(1)));
-            list.add(Instruction.ADDI(tac.frame, p2, p2, new Const(1)));
+            list.add(Instruction.ADDIU(tac.frame, p1, p1, new Const(1)));
+            list.add(Instruction.ADDIU(tac.frame, p2, p2, new Const(1)));
             list.add(Instruction.J(tac.frame, begin));
 
             list.add(great);
@@ -850,10 +854,10 @@ public class CodeGen {
         graph.addNode(a1);
         for (LabeledInstruction i: list) {
             if (i.instruction != null) {
+                for (Temp u: i.instruction.useList())
+                    graph.addNode(u);
                 for (Temp t: i.instruction.def()) {
                     graph.addNode(t);
-                    for (Temp u: i.instruction.useList())
-                        graph.addNode(u);
                     for (Temp u: life.out(i.instruction)) {
                         if (t != u)
                             graph.addUndirectedEdge(t, u);
