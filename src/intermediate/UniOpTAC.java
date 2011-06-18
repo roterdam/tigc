@@ -17,6 +17,10 @@ public class UniOpTAC extends OpTAC {
         this.dst = (Access) dst;
     }
 
+    public UniOpTAC clone() {
+        return new UniOpTAC(frame, op, op1, (AssignableAccess) dst);
+    }
+
     public String toString() {
         String s = "";
         switch (op) {

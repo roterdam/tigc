@@ -9,5 +9,7 @@ public abstract class ThreeAddressCode {
     public ThreeAddressCode(Frame frame) {
         this.frame = frame;
     }
+
+    abstract public ThreeAddressCode clone();
 }
 

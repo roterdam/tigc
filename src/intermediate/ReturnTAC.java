@@ -10,6 +10,10 @@ public class ReturnTAC extends ThreeAddressCode {
         this.dst = null;
     }
 
+    public ReturnTAC clone() {
+        return new ReturnTAC(frame);
+    }
+
     public String toString() {
         return "return";
     }

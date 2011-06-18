@@ -17,6 +17,10 @@ public class CallExternTAC extends ThreeAddressCode {
         this.place = place;
     }
 
+    public CallExternTAC clone() {
+        return new CallExternTAC(frame, place, param1, param2, param3, (AssignableAccess) dst);
+    }
+
     public String toString() {
         String s = "call extern " + place.toString() + "(";
         if (param1 != null)

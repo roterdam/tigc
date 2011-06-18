@@ -10,9 +10,11 @@ class VarEntry extends Entry {
     type.Type type;
     boolean assignable;
     Temp place;
+    Integer c = null;
 
-    public VarEntry(type.Type type, Temp place) {
+    public VarEntry(type.Type type, Temp place, Integer c) {
         this(type, true, place);
+        this.c = c;
     }
 
     public VarEntry(type.Type type, boolean assignable, Temp place) {

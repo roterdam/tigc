@@ -6,6 +6,31 @@ import util.*;
 public class IntermediateCodeList implements Iterable<IntermediateCode> {
     private SimpleLinkedList<IntermediateCode> codes = new SimpleLinkedList<IntermediateCode>();
 
+    public IntermediateCodeList duplicate() {
+        Map<Label, Label> labelMap = new HashMap<Label, Label>();
+        for (IntermediateCode ic: this) {
+            if (ic.label != null && !labelMap.containsKey(ic.label))
+                labelMap.put(ic.label, Label.newLabel());
+        }
+
+        IntermediateCodeList ret = new IntermediateCodeList();
+        for (IntermediateCode ic: this) {
+            if (ic.label != null)
+                ret.add(labelMap.get(ic.label));
+            if (ic.tac != null) {
+                ThreeAddressCode tac = ic.tac.clone();
+                if (tac instanceof GotoTAC) {
+                    ((GotoTAC) tac).place = labelMap.get(((GotoTAC) tac).place);
+                } else if (tac instanceof BranchTAC) {
+                    ((BranchTAC) tac).place = labelMap.get(((BranchTAC) tac).place);
+                }
+                ret.add(tac);
+            }
+        }
+
+        return ret;
+    }
+
     public void add(IntermediateCode i) {
         add(i.label, i.tac, i.comment);
     }

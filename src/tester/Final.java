@@ -1,16 +1,16 @@
-import scanner.Scanner;
-import parser.Parser;
-import notifier.Notifier;
+package tester;
+
 import absyn.*;
-import symbol.*;
+import parser.*;
+import scanner.*;
+import notifier.*;
 import semant.Semant;
 import java.io.*;
 import intermediate.*;
-import mips32.CodeGen;
-import mips32.Optimizer;
+import mips32.*;
 
-public class Main {
-    public static String removeExtensionName(String filename) {
+public class Final {
+    private static String removeExtensionName(String filename) {
         int i = filename.lastIndexOf('.');
         if (i == -1)
             return filename;
@@ -19,48 +19,50 @@ public class Main {
     }
 
     public static void main(String[] args) {
-        Notifier notifier = new Notifier(System.out);
         if (args.length == 0) {
-            notifier.error("Missing filepath");
-            return;
+            System.out.println("Missing filepath");
+            System.exit(1);
         }
 
-        String srcFile = args[0];
+        String source = args[0];
+
+        Notifier notifier = new Notifier(System.out);
+
         FileReader reader = null;
         try {
-            reader = new FileReader(srcFile);
+            reader = new FileReader(source);
         } catch (FileNotFoundException e) {
             notifier.error(e.getMessage());
-            return;
+            System.exit(1);
         }
 
         Parser parser = new Parser(new Scanner(reader), notifier);
         try {
-            java_cup.runtime.Symbol absyn = parser.parse();
+            Object absyn = parser.parse().value;
             if (!notifier.hasError()) {
                 Semant semant = new Semant(notifier);
-                IR ir = semant.translate((Expr) absyn.value);
-
+                IR ir = semant.translate((Expr) absyn);
                 if (!notifier.hasError()) {
                     Optimizer opt = new Optimizer();
                     CodeGen cg = new CodeGen(notifier, ir, opt);
 
                     if (!notifier.hasError()) {
-                        BufferedWriter writer = new BufferedWriter(new FileWriter(removeExtensionName(srcFile) + ".s"));
+                        BufferedWriter writer = new BufferedWriter(new FileWriter(removeExtensionName(source) + ".s"));
                         cg.generate(writer);
                         writer.close();
                     }
                 }
             }
-            
-            if (notifier.hasError()) {
-                notifier.printSummary();
-            }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             notifier.error(e.getMessage());
             e.printStackTrace();
+            System.exit(1);
         }
+
+        if (!notifier.hasError())
+            System.exit(0);
+        else
+            System.exit(1);
     }
 }
 

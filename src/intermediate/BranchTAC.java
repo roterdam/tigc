@@ -19,6 +19,10 @@ public class BranchTAC extends ThreeAddressCode {
         this.place = place;
     }
 
+    public BranchTAC clone() {
+        return new BranchTAC(frame, type, op1, op2, place);
+    }
+
     public String toString() {
         String s = "";
         switch (type) {

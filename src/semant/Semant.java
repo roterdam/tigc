@@ -173,7 +173,7 @@ public class Semant {
         else if (expr instanceof WhileExpr)
             return transExpr((WhileExpr) expr);
         else
-            return new TranslateResult(new IntermediateCodeList(), new type.Int());
+            return new TranslateResult(new IntermediateCodeList(), new type.Int(), 0);
     }
 
     private TranslateResult transExpr(ArrayExpr expr) {
@@ -183,12 +183,12 @@ public class Semant {
 
             notifier.error("Undefined type: " + origName(expr.type.toString())
                     + "; int array assumed.", expr.pos);
-            return new TranslateResult(new IntermediateCodeList(), new type.Array(new type.Int()));
+            return new TranslateResult(new IntermediateCodeList(), new type.Array(new type.Int()), 0);
 
         } else if (!(ta instanceof type.Array)) {
 
             notifier.error(origName(t.toString()) + " is not an array type; int array assumed.");
-            return new TranslateResult(new IntermediateCodeList(), new type.Array(new type.Int()));
+            return new TranslateResult(new IntermediateCodeList(), new type.Array(new type.Int()), 0);
 
         } else {
 
@@ -234,7 +234,7 @@ public class Semant {
                 codes.add(l2);
             }
 
-            return new TranslateResult(codes, t, tres);
+            return new TranslateResult(codes, t, tres, null, size.loopCount + init.loopCount);
         }
     }
 
@@ -249,7 +249,7 @@ public class Semant {
             codes.addAll(r.codes);
             codes.add(new MoveTAC(currentFrame.peek(), r.place, (AssignableAccess) l.place));
         }
-        return new TranslateResult(codes, new type.Void());
+        return new TranslateResult(codes, new type.Void(), r.loopCount);
     }
 
     private TranslateResult transExpr(BreakExpr expr) {
@@ -257,7 +257,7 @@ public class Semant {
             notifier.error("Invalid break", expr.pos);
         IntermediateCodeList codes = new IntermediateCodeList();
         codes.add(new GotoTAC(currentFrame.peek(), breakStack.peek()));
-        return new TranslateResult(codes, new type.Void());
+        return new TranslateResult(codes, new type.Void(), 0);
     }
 
     private TranslateResult transExpr(CallExpr expr) {
@@ -265,12 +265,12 @@ public class Semant {
         if (e == null) {
             notifier.error("Undefined function " + origName(expr.func.toString())
                     + "; assumed return VOID", expr.pos);
-            return new TranslateResult(null, new type.Void());
+            return new TranslateResult(null, new type.Void(), 0);
         }
         if (e instanceof VarEntry) {
             notifier.error(origName(expr.func.toString()) +
                     " is not a function; assumed return VOID", expr.pos);
-            return new TranslateResult(null, new type.Void());
+            return new TranslateResult(null, new type.Void(), 0);
         }
 
         FuncEntry func = (FuncEntry)e;
@@ -285,10 +285,12 @@ public class Semant {
         IntermediateCodeList codes = new IntermediateCodeList(),
                              codesParam = new IntermediateCodeList();
         ArrayList<Access> actuals = new ArrayList<Access>();
+        int loopCount = 0;
         ThreeAddressCode call = func.isExtern ? null : new CallTAC(currentFrame.peek(), func.frame.place, ret);
         while (p != null && !p.isEmpty() && q != null) {
             TranslateResult tq = transExpr(q.expr);
             checkType(p.type, tq.type, q.expr.pos);
+            loopCount += tq.loopCount;
 
             actuals.add(tq.place);
             if (!notifier.hasError())
@@ -333,7 +335,7 @@ public class Semant {
         if ((p != null && !p.isEmpty()) || q != null)
             notifier.error("Function param number mismatch", expr.pos);
 
-        return new TranslateResult(codes, func.result, ret);
+        return new TranslateResult(codes, func.result, ret, null, loopCount);
     }
 
     private TranslateResult transExpr(ForExpr expr) {
@@ -342,8 +344,9 @@ public class Semant {
         checkType(new type.Int(), br.type, expr.begin.pos);
         checkType(new type.Int(), er.type, expr.end.pos);
 
-        Label endLoop = Label.newLabel();
+
         Temp inductionVar = currentFrame.peek().addLocal();
+        Label endLoop = Label.newLabel();
 
         vt.beginScope();
         vt.put(expr.var, new VarEntry(new type.Int(), false, inductionVar));
@@ -352,24 +355,48 @@ public class Semant {
         breakStack.pop();
         checkType(new type.Void(), result.type, expr.body.pos);
         vt.endScope();
-        
-        IntermediateCodeList codes = new IntermediateCodeList();
-        if (!notifier.hasError()) {
-            codes.addAll(br.codes);
-            codes.addAll(er.codes);
-            codes.add(new MoveTAC(currentFrame.peek(), br.place, inductionVar));
-            codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.GT, inductionVar, er.place, endLoop));
-            Temp temp = currentFrame.peek().addLocal();
-            codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.ADD, er.place, new ConstAccess(1), temp));
-            Label beginLoop = Label.newLabel();
-            codes.add(beginLoop);
-            codes.addAll(result.codes);
-            codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.ADD, inductionVar, new ConstAccess(1), inductionVar));
-            codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.NEQ, inductionVar, temp, beginLoop));
-            codes.add(endLoop);
+
+        boolean expand = false;
+        int loopCount = result.loopCount;
+        if (br.c != null && er.c != null) {
+            int l = er.c.intValue() - br.c.intValue() + 1;
+            if (l >= 0 && l <= 15 && loopCount == 0) {
+                expand = true;
+                if (loopCount == 0)
+                    loopCount = l;
+                else
+                    loopCount *= l;
+            }
         }
 
-        return new TranslateResult(codes, new type.Void());
+        IntermediateCodeList codes = new IntermediateCodeList();
+        if (!notifier.hasError()) {
+            if (expand) {
+
+                for (int i = br.c.intValue(); i <= er.c.intValue(); ++i) {
+                    codes.add(new MoveTAC(currentFrame.peek(), new ConstAccess(i), inductionVar));
+                    codes.addAll(result.codes.duplicate());
+                }
+                codes.add(endLoop);
+
+            } else {
+                codes.addAll(br.codes);
+                codes.addAll(er.codes);
+                codes.add(new MoveTAC(currentFrame.peek(), br.place, inductionVar));
+                codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.GT, inductionVar, er.place, endLoop));
+                Temp temp = currentFrame.peek().addLocal();
+                codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.ADD, er.place, new ConstAccess(1), temp));
+                Label beginLoop = Label.newLabel();
+                codes.add(beginLoop);
+                codes.addAll(result.codes);
+                codes.add(new BinOpTAC(currentFrame.peek(), BinOpTAC.BinOp.ADD, inductionVar, new ConstAccess(1), inductionVar));
+                codes.add(new BranchTAC(currentFrame.peek(), BranchTAC.BranchType.NEQ, inductionVar, temp, beginLoop));
+                codes.add(endLoop);
+
+            }
+        }
+
+        return new TranslateResult(codes, new type.Void(), loopCount);
     }
 
     private TranslateResult transExpr(IfExpr expr) {
@@ -402,7 +429,7 @@ public class Semant {
                 codes.add(endIf);
             }
 
-            return new TranslateResult(codes, thenr.type, place);
+            return new TranslateResult(codes, thenr.type, place, null, cr.loopCount + thenr.loopCount + elser.loopCount);
 
         } else {
             TranslateResult thenr = transExpr(expr.thenClause);
@@ -417,12 +444,13 @@ public class Semant {
                 codes.add(endIf);
             }
 
-            return new TranslateResult(codes, new type.Void());
+            return new TranslateResult(codes, new type.Void(), cr.loopCount + thenr.loopCount);
         }
     }
 
     private TranslateResult transExpr(IntExpr expr) {
-        return new TranslateResult(new IntermediateCodeList(), new type.Int(), new ConstAccess(expr.value));
+        return new TranslateResult(new IntermediateCodeList(), new type.Int(),
+                new ConstAccess(expr.value), new Integer(expr.value), 0);
     }
 
     private TranslateResult transExpr(LetExpr expr) {
@@ -438,7 +466,7 @@ public class Semant {
             codes.addAll(rd.codes);
             codes.addAll(re.codes);
         }
-        return new TranslateResult(codes, re.type, re.place);
+        return new TranslateResult(codes, re.type, re.place, re.c, rd.loopCount + re.loopCount);
     }
 
     private TranslateResult transExpr(LValueExpr expr) {
@@ -456,11 +484,13 @@ public class Semant {
             codes.add(new UniOpTAC(currentFrame.peek(), UniOpTAC.UniOp.NEG, te.place, place));
         }
 
-        return new TranslateResult(codes, new type.Int(), place);
+        return new TranslateResult(codes, new type.Int(), place,
+                te.c == null ? null : new Integer(-te.c.intValue()), te.loopCount);
     }
 
     private TranslateResult transExpr(NilExpr expr) {
-        return new TranslateResult(new IntermediateCodeList(), new type.Nil(), new ConstAccess(0));
+        return new TranslateResult(new IntermediateCodeList(), new type.Nil(),
+                new ConstAccess(0), null, 0);
     }
 
     private TranslateResult transExpr(OpExpr expr) {
@@ -470,45 +500,67 @@ public class Semant {
             rtype = rr.type, ra = rtype.actual();
 
         BinOpTAC.BinOp op = BinOpTAC.BinOp.ADD;
+        boolean isConst = (lr.c != null && rr.c != null);
+        Integer c = null;
         switch (expr.op) {
             case ADD:
                 op = BinOpTAC.BinOp.ADD;
+                if (isConst)
+                    c = new Integer(lr.c.intValue() + rr.c.intValue());
                 break;
 
             case SUB:
                 op = BinOpTAC.BinOp.SUB;
+                if (isConst)
+                    c = new Integer(lr.c.intValue() - rr.c.intValue());
                 break;
 
             case MUL:
                 op = BinOpTAC.BinOp.MUL;
+                if (isConst)
+                    c = new Integer(lr.c.intValue() * rr.c.intValue());
                 break;
 
             case DIV:
                 op = BinOpTAC.BinOp.DIV;
+                if (isConst)
+                    c = new Integer(lr.c.intValue() / rr.c.intValue());
                 break;
 
             case EQ:
                 op = BinOpTAC.BinOp.EQ;
+                if (isConst)
+                    c = new Integer(lr.c.intValue() == rr.c.intValue() ? 1 : 0);
                 break;
 
             case NEQ:
                 op = BinOpTAC.BinOp.NEQ;
+                if (isConst)
+                    c = new Integer(lr.c.intValue() != rr.c.intValue() ? 1 : 0);
                 break;
 
             case LT:
                 op = BinOpTAC.BinOp.LT;
+                if (isConst)
+                    c = new Integer(lr.c.intValue() < rr.c.intValue() ? 1 : 0);
                 break;
 
             case LEQ:
                 op = BinOpTAC.BinOp.LEQ;
+                if (isConst)
+                    c = new Integer(lr.c.intValue() <= rr.c.intValue() ? 1 : 0);
                 break;
 
             case GT:
                 op = BinOpTAC.BinOp.GT;
+                if (isConst)
+                    c = new Integer(lr.c.intValue() > rr.c.intValue() ? 1 : 0);
                 break;
 
             case GEQ:
                 op = BinOpTAC.BinOp.GEQ;
+                if (isConst)
+                    c = new Integer(lr.c.intValue() >= rr.c.intValue() ? 1 : 0);
                 break;
         }
 
@@ -613,17 +665,17 @@ public class Semant {
         } else
             notifier.error("Invalid comparation between " + origName(ltype.toString())
                     + " and " + origName(rtype.toString()), expr.pos);
-        return new TranslateResult(codes, new type.Int(), place);
+        return new TranslateResult(codes, new type.Int(), place, c, lr.loopCount + rr.loopCount);
     }
 
     private TranslateResult transExpr(RecordExpr expr) {
         type.Type type = tt.get(expr.type);
         if (type == null) {
             notifier.error(origName(expr.type.toString()) + " undefined; empty RECORD assumed", expr.pos);
-            return new TranslateResult(new IntermediateCodeList(), new type.Record(null, null, null));
+            return new TranslateResult(new IntermediateCodeList(), new type.Record(null, null, null), 0);
         } else if (!(type.actual() instanceof type.Record)) {
             notifier.error(origName(type.toString()) + " is not a record; empty RECORD assumed", expr.pos);
-            return new TranslateResult(new IntermediateCodeList(), new type.Record(null, null, null));
+            return new TranslateResult(new IntermediateCodeList(), new type.Record(null, null, null), 0);
         } else {
             type.Record p = (type.Record) type.actual();
             FieldList q = expr.fields;
@@ -638,12 +690,14 @@ public class Semant {
             }
 
             int offset = 0;
+            int loopCount = 0;
             while ((p != null && !p.isEmpty()) && q != null) {
                 if (p.field != q.name)
                     notifier.error("Field name mismatch: " + p.field.toString() + " expected but"
                            + q.name.toString() + " found", q.pos);
                 TranslateResult qr = transExpr(q.value);
                 checkType(p.type, qr.type, q.value.pos);
+                loopCount += qr.loopCount;
 
                 if (!notifier.hasError()) {
                     codes.addAll(qr.codes);
@@ -658,7 +712,7 @@ public class Semant {
             if ((p != null && !p.isEmpty()) || q != null)
                 notifier.error("Field number mismatch", expr.fields.pos);
 
-            return new TranslateResult(codes, type, place);
+            return new TranslateResult(codes, type, place, null, loopCount);
         }
     }
 
@@ -668,7 +722,7 @@ public class Semant {
 
     private TranslateResult transExpr(StringExpr expr) {
         return new TranslateResult(new IntermediateCodeList(),
-                new type.String(), ir.stringTable.get(expr.value));
+                new type.String(), ir.stringTable.get(expr.value), null, 0);
     }
 
     private TranslateResult transExpr(WhileExpr expr) {
@@ -693,28 +747,32 @@ public class Semant {
             codes.add(endWhile);
         }
 
-        return new TranslateResult(codes, new type.Void());
+        return new TranslateResult(codes, new type.Void(), cr.loopCount + br.loopCount);
     }
 
     private TranslateResult transExprList(ExprList expr) {
         type.Type retType = new type.Void();
         IntermediateCodeList codes = new IntermediateCodeList();
         Access place = null;
+        Integer c = null;
+        int loopCount = 0;
         while (expr != null) {
             TranslateResult r = transExpr(expr.expr);
             retType = r.type;
+            c = r.c;
+            loopCount += r.loopCount;
             if (!notifier.hasError()) {
                 codes.addAll(r.codes);
                 place = r.place;
             }
             expr = expr.next;
         }
-        return new TranslateResult(codes, retType, place);
+        return new TranslateResult(codes, retType, place, c, loopCount);
     }
 
     private TranslateResult transDeclList(DeclList expr) {
         if (expr == null)
-            return new TranslateResult(new IntermediateCodeList(), null);
+            return new TranslateResult(new IntermediateCodeList(), null, 0);
 
         IntermediateCodeList codes = new IntermediateCodeList();
         if (expr.decl instanceof VarDecl) {
@@ -728,7 +786,7 @@ public class Semant {
                     Temp t = currentFrame.peek().addLocal();
 
                     TranslateResult ir = transExpr(vd.value);
-                    vt.put(vd.id, new VarEntry(type, t));
+                    vt.put(vd.id, new VarEntry(type, t, ir.c));
                     checkType(type, ir.type, vd.value.pos);
                     
                     if (!notifier.hasError()) {
@@ -747,7 +805,7 @@ public class Semant {
                             + "; INT assumed");
                     type = new type.Int();
                 }
-                vt.put(vd.id, new VarEntry(type, t));
+                vt.put(vd.id, new VarEntry(type, t, ir.c));
 
                 if (!notifier.hasError()) {
                     codes.addAll(ir.codes);
@@ -756,7 +814,7 @@ public class Semant {
             }
 
             codes.addAll(transDeclList(expr.next).codes);
-            return new TranslateResult(codes, null);
+            return new TranslateResult(codes, null, 0);
 
         } else if (expr.decl instanceof TypeDecl) {
 
@@ -831,7 +889,7 @@ public class Semant {
                 FuncEntry fe = (FuncEntry) vt.get(fd.name);
                 type.Record pp = fe.params;
                 for (Temp t: fe.frame.params) {
-                    vt.put(pp.field, new VarEntry(pp.type, t));
+                    vt.put(pp.field, new VarEntry(pp.type, t, null));
                     pp = pp.next;
                 }
 
@@ -864,7 +922,7 @@ public class Semant {
             codes.addFirst(new GotoTAC(currentFrame.peek(), skip));
             codes.add(skip);
             codes.addAll(transDeclList(p).codes);
-            return new TranslateResult(codes, null);
+            return new TranslateResult(codes, null, 0);
 
         }
     }
@@ -930,6 +988,7 @@ public class Semant {
             Entry entry = vt.get(vl.name);
             type.Type type = null;
             Access place = null;
+            Integer c = null;
             if (entry == null) {
                 notifier.error("Undefined variable " + origName(vl.name.toString())
                         + "; type INT assumed", vl.pos);
@@ -942,8 +1001,12 @@ public class Semant {
                 place = ((VarEntry) entry).place;
                 if (assignment && !((VarEntry) entry).assignable)
                     notifier.error(origName(vl.name.toString()) + " cannot be assigned here", vl.pos);
+                if (assignment)
+                    ((VarEntry) entry).c = null;
+                else
+                    c = ((VarEntry) entry).c;
             }
-            return new TranslateResult(new IntermediateCodeList(), type, place);
+            return new TranslateResult(new IntermediateCodeList(), type, place, c, 0);
 
         } else if (lvalue instanceof FieldLValue) {
 
@@ -978,7 +1041,7 @@ public class Semant {
                 notifier.error(origName(type.toString()) + " is not a RECORD; type INT assumed", fl.pos);
                 ret = new type.Int();
             }
-            return new TranslateResult(codes, ret, place);
+            return new TranslateResult(codes, ret, place, null, tr.loopCount);
 
         } else /*if (lvalue instanceof SubscriptLValue)*/ {
             
@@ -1007,7 +1070,7 @@ public class Semant {
                 place = new MemAccess(sa, to);
             }
 
-            return new TranslateResult(codes, ret, place);
+            return new TranslateResult(codes, ret, place, null, tr.loopCount + tr2.loopCount);
 
         } 
     }

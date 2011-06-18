@@ -13,5 +13,9 @@ public class MoveTAC extends ThreeAddressCode {
     public String toString() {
         return dst.toString() + " := " + op1.toString();
     }
+
+    public MoveTAC clone() {
+        return new MoveTAC(frame, op1, (AssignableAccess) dst);
+    }
 }
  

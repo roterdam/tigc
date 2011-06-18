@@ -13,6 +13,10 @@ public class GotoTAC extends ThreeAddressCode {
         this.place = place;
     }
 
+    public GotoTAC clone() {
+        return new GotoTAC(frame, place);
+    }
+
     public String toString() {
         return "goto " + place.toString();
     }

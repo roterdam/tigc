@@ -18,6 +18,10 @@ public class BinOpTAC extends OpTAC {
         this.dst = (Access) dst;
     }
 
+    public BinOpTAC clone() {
+        return new BinOpTAC(frame, op, op1, op2, (AssignableAccess) dst);
+    }
+
     public String toString() {
         String s = "";
         switch (op) {

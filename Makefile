@@ -9,7 +9,7 @@ JC2 = javac -d bin/ -cp bin/
 
 all: bin/Main.class
 
-debug: all bin/tester/SymbolTableTester.class bin/tester/ParserTester.class bin/tester/SemantTester.class bin/tester/Mid.class bin/tester/SimpleLinkedListTester.class bin/tester/GraphTester.class bin/tester/BasicBlockOptimizerTester.class
+debug: all bin/tester/SymbolTableTester.class bin/tester/ParserTester.class bin/tester/SemantTester.class bin/tester/Mid.class bin/tester/SimpleLinkedListTester.class bin/tester/GraphTester.class bin/tester/BasicBlockOptimizerTester.class bin/tester/Final.class
 
 bin/Main.class: src/Main.java bin/parser/Parser.class bin/scanner/Scanner.class absyn bin/absyn/Printer.class bin/semant/Semant.class bin/notifier/Notifier.class intermediate bin/mips32/CodeGen.class bin/mips32/Optimizer.class
 	$(JC) src/Main.java
@@ -25,6 +25,10 @@ bin/tester/SemantTester.class: src/tester/SemantTester.java bin/parser/Parser.cl
 
 bin/tester/Mid.class: src/tester/Mid.java bin/parser/Parser.class absyn bin/semant/Semant.class
 	$(JC) src/tester/Mid.java
+	
+bin/tester/Final.class: src/tester/Final.java bin/parser/Parser.class bin/scanner/Scanner.class absyn bin/absyn/Printer.class bin/semant/Semant.class bin/notifier/Notifier.class intermediate bin/mips32/CodeGen.class bin/mips32/Optimizer.class
+	$(JC) src/tester/Final.java
+
 
 bin/tester/SimpleLinkedListTester.class: bin/util/SimpleLinkedList.class src/tester/SimpleLinkedListTester.java
 	$(JC) src/tester/SimpleLinkedListTester.java

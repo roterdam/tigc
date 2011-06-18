@@ -8,6 +8,12 @@ public class CallTAC extends ThreeAddressCode {
     public ArrayList<Access> params = new ArrayList<Access>();
     public Temp actualReturn;
 
+    public CallTAC clone() {
+        CallTAC ret = new CallTAC(frame, place, actualReturn);
+        ret.params = new ArrayList<Access>(params);
+        return ret;
+    }
+
     public CallTAC(Frame frame, Label place, Temp actualReturn) {
         super(frame);
         this.op1 = null;
