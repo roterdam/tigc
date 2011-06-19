@@ -30,16 +30,21 @@ public class CodeGen {
     Temp zero, gp, fp, sp, ra, v0, a0, a1;
     int wordLength = 4;
 
+    Set<Temp> usedDisplays;
+
     static class SavePlace {
         LabeledInstruction save, restore;
         LabeledInstruction ret;
         Frame frame;
+        Temp calleeReturnValue;
 
-        public SavePlace(Frame frame, LabeledInstruction save, LabeledInstruction restore, LabeledInstruction ret) {
+        public SavePlace(Frame frame, LabeledInstruction save, LabeledInstruction restore,
+                LabeledInstruction ret, Temp calleeReturnValue) {
             this.save = save;
             this.restore = restore;
             this.frame = frame;
             this.ret = ret;
+            this.calleeReturnValue = calleeReturnValue;
         }
     }
 
@@ -51,6 +56,7 @@ public class CodeGen {
         this.opt = opt;
         ir.wordLength.bind(wordLength);
         labelMap = new HashMap<Label, ThreeAddressCode>();
+        usedDisplays = new HashSet<Temp>();
         
         HashSet<Label> labels = new HashSet<Label>();
         for (IntermediateCode ic: ir.codes) {
@@ -126,6 +132,8 @@ public class CodeGen {
             }
             if (i != null) {
                 Set<Temp> s = new HashSet<Temp>(life.in(i));
+                if (place.calleeReturnValue != null)
+                    s.remove(place.calleeReturnValue);
                 ArrayList<Temp> saves = new ArrayList<Temp>();
                 for (Temp t: place.frame.params)
                     if (s.contains(t))
@@ -196,6 +204,7 @@ public class CodeGen {
 
 
         list = opt.optimize(list, zero);
+
 
         ArrayList<Register> registers = new ArrayList<Register>();
         registers.add(new Register("$v0"));
@@ -303,7 +312,7 @@ public class CodeGen {
             list = nlist;
         }
         
-        list = opt.finalOptimize(list, map);
+        list = opt.finalOptimize(list, map, usedDisplays);
 
         SpimAsm asm = new SpimAsm(list, map, ir);
         asm.output(writer);
@@ -322,6 +331,7 @@ public class CodeGen {
             list.add(Instruction.LW(ins.frame, t, fp, new Const(offset)));
         } else {
             Temp display = src.frame.display;
+            usedDisplays.add(display);
             if (!display.inMem()) {
                 list.add(Instruction.LW(ins.frame, t, display, new Const(offset)));
             } else {
@@ -342,6 +352,7 @@ public class CodeGen {
             list.add(Instruction.SW(ins.frame, value, fp, new Const(offset)));
         } else {
             Temp display = old.frame.display;
+            usedDisplays.add(display);
             if (!display.inMem()) {
                 list.add(Instruction.SW(ins.frame, value, display, new Const(offset)));
             } else {
@@ -586,8 +597,8 @@ public class CodeGen {
 
         list.add(Instruction.SW(tac.frame, fp, sp, new Const(0)));
         list.add(Instruction.SW(tac.frame, ra, sp, new Const(-wordLength)));
-        list.add(Instruction.SW(tac.frame, callee.display, sp, new Const(-2 * wordLength)));
-        list.add(Instruction.MOVE(tac.frame, callee.display, sp));
+        list.add(Instruction.SW(tac.frame, callee.display, sp, new Const(-2 * wordLength), callee.display));
+        list.add(Instruction.MOVE(tac.frame, callee.display, sp, callee.display));
         list.add(Instruction.MOVE(tac.frame, fp, sp));
         list.add(addSideEffect(Instruction.ADDIU(callee, sp, sp, callee.minusFrameSize)));
 
@@ -596,7 +607,7 @@ public class CodeGen {
         LabeledInstruction retPlace = list.add(retLabel);
         list.add(addSideEffect(Instruction.ADDIU(callee, sp, sp, callee.frameSize)));
         list.add(addSideEffect(Instruction.LW(callee, fp, sp, new Const(0))));
-        list.add(Instruction.LW(tac.frame, callee.display, sp, new Const(-2 * wordLength)));
+        list.add(Instruction.LW(tac.frame, callee.display, sp, new Const(-2 * wordLength), callee.display));
         list.add(Instruction.LW(tac.frame, ra, sp, new Const(-wordLength)));
 
         if (callee.returnValue != null)
@@ -606,7 +617,7 @@ public class CodeGen {
 
         if (needsave) {
             restore = list.addPlaceHolder();
-            callSaves.add(new SavePlace(tac.frame, save, restore, retPlace));
+            callSaves.add(new SavePlace(tac.frame, save, restore, retPlace, callee.returnValue));
         }
     }
 

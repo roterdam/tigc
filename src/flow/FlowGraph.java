@@ -38,7 +38,7 @@ public class FlowGraph {
             return null;
     }
 
-    public void removeUnreachableCodes() {
+    public void removeUnreachableNodes() {
         boolean change = false;
         do
         {

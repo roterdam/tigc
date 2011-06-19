@@ -22,13 +22,15 @@ public class Instruction extends arch.Instruction {
 
     ArrayList<Temp> syscallUse = new ArrayList<Temp>();
     Temp syscallDef = null;
+    boolean exit = false;
 
     Temp ra = null;
+    Temp display = null;
 
     static enum Type {
         MOVE, ADD, ADDI, ADDIU,
             SUB, MUL,
-            DIV, NEG,
+            DIV, REM, NEG,
             SLL, SRL,
             SLT, SLTI,
             SLE, SEQ,
@@ -60,6 +62,12 @@ public class Instruction extends arch.Instruction {
         return new Instruction(frame, Type.MOVE, dst, src, null, null, null);
     }
 
+    public static Instruction MOVE(Frame frame, Temp dst, Temp src, Temp display) {
+        Instruction ret = MOVE(frame, dst, src);
+        ret.display = display;
+        return ret;
+    }
+
     public static Instruction ADD(Frame frame, Temp dst, Temp src1, Temp src2) {
         return new Instruction(frame, Type.ADD, dst, src1, src2, null, null);
     }
@@ -82,6 +90,10 @@ public class Instruction extends arch.Instruction {
 
     public static Instruction DIV(Frame frame, Temp dst, Temp src1, Temp src2) {
         return new Instruction(frame, Type.DIV, dst, src1, src2, null, null);
+    }
+
+    public static Instruction REM(Frame frame, Temp dst, Temp src1, Temp src2) {
+        return new Instruction(frame, Type.REM, dst, src1, src2, null, null);
     }
 
     public static Instruction SLL(Frame frame, Temp dst, Temp src1, Const src2) {
@@ -128,12 +140,24 @@ public class Instruction extends arch.Instruction {
         return new Instruction(frame, Type.LW, dst, base, null, offset, null);
     }
 
+    public static Instruction LW(Frame frame, Temp dst, Temp base, Const offset, Temp display) {
+        Instruction ret = LW(frame, dst, base, offset);
+        ret.display = display;
+        return ret;
+    }
+
     public static Instruction LB(Frame frame, Temp dst, Temp base, Const offset) {
         return new Instruction(frame, Type.LB, dst, base, null, offset, null);
     }
 
     public static Instruction SW(Frame frame, Temp value, Temp base, Const offset) {
         return new Instruction(frame, Type.SW, null, base, value, offset, null);
+    }
+
+    public static Instruction SW(Frame frame, Temp value, Temp base, Const offset, Temp display) {
+        Instruction ret = SW(frame, value, base, offset);
+        ret.display = display;
+        return ret;
     }
 
     public static Instruction SB(Frame frame, Temp value, Temp base, Const offset) {
@@ -210,6 +234,11 @@ public class Instruction extends arch.Instruction {
             case 9:
                 ret.syscallUse.add(a0);
                 ret.syscallDef = v0;
+                break;
+
+            case 10:
+                ret.exit = true;
+                break;
         }
         return ret;
     }
@@ -254,6 +283,10 @@ public class Instruction extends arch.Instruction {
 
             case DIV:
                 s = "div " + map.get(dst).toString() + ", " + map.get(src1).toString() + ", " + map.get(src2).toString();
+                break;
+
+            case REM:
+                s = "rem " + map.get(dst).toString() + ", " + map.get(src1).toString() + ", " + map.get(src2).toString();
                 break;
 
             case SLL:
@@ -425,6 +458,8 @@ public class Instruction extends arch.Instruction {
         ret.syscallDef = this.syscallDef;
         ret.ra = this.ra;
         ret.sideEffects = this.sideEffects;
+        ret.display = this.display;
+        ret.exit = this.exit;
         if (this.type != Type.SYSCALL) {
             if (params.size() >= 1)
                 ret.src1 = params.get(0);
@@ -438,6 +473,8 @@ public class Instruction extends arch.Instruction {
         Instruction ret = MOVE(frame, dst, src);
         ret.sideEffects = sideEffects;
         ret.special = special;
+        ret.display = display;
+        ret.exit = exit;
         return ret;
     }
 
@@ -472,7 +509,12 @@ public class Instruction extends arch.Instruction {
         Instruction mi = (Instruction) i;
         return (type == mi.type && frame == mi.frame && (imm == null ? mi.imm == null : imm.equals(mi.imm))
                 && target == mi.target && special == mi.special && syscallUse.equals(mi.syscallUse)
-                && syscallDef == mi.syscallDef && ra == mi.ra && sideEffects == mi.sideEffects);
+                && syscallDef == mi.syscallDef && ra == mi.ra && sideEffects == mi.sideEffects && exit == mi.exit
+                && display == mi.display);
+    }
+
+    public boolean isExit() {
+        return exit;
     }
 }
 

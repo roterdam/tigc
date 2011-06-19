@@ -35,15 +35,21 @@ class Util {
                     t = new BasicBlock();
                     next.put(current, t);
                     current = t;
+                } else if (i.instruction.isExit()) {
+                    blocks.add(current);
+                    graph.add(current);
+                    current = new BasicBlock();
                 }
             }
         }
-        blocks.add(current);
-        graph.add(current);
+        if (current.isEmpty()) {
+            blocks.add(current);
+            graph.add(current);
+        }
 
         for (BasicBlock b: blocks) {
             if (b.isInsEmpty() || !b.getLast().isJump()) {
-                if (next.containsKey(b))
+                if (next.containsKey(b) && blocks.contains(next.get(b)))
                     graph.addEdge(b, next.get(b), true);
             } else {
                 Instruction ins = (Instruction) b.getLast();
@@ -52,7 +58,7 @@ class Util {
                         graph.addEdge(b, labelMap.get(p), false);
                 } else {
                     graph.addEdge(b, labelMap.get(ins.target), false);
-                    if (ins.isBranch() && next.containsKey(b))
+                    if (ins.isBranch() && next.containsKey(b) && blocks.contains(next.get(b)))
                         graph.addEdge(b, next.get(b), true);
                     else if (ins.type == Instruction.Type.JAL && next.containsKey(b))
                         graph.addNext(b, next.get(b));

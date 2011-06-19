@@ -356,12 +356,12 @@ public class Semant {
         checkType(new type.Void(), result.type, expr.body.pos);
         vt.endScope();
 
-        boolean expand = false;
+        boolean unroll = false;
         int loopCount = result.loopCount;
         if (br.c != null && er.c != null) {
             int l = er.c.intValue() - br.c.intValue() + 1;
             if (l >= 0 && l <= 15 && loopCount == 0) {
-                expand = true;
+                unroll = true;
                 if (loopCount == 0)
                     loopCount = l;
                 else
@@ -371,7 +371,7 @@ public class Semant {
 
         IntermediateCodeList codes = new IntermediateCodeList();
         if (!notifier.hasError()) {
-            if (expand) {
+            if (unroll) {
 
                 for (int i = br.c.intValue(); i <= er.c.intValue(); ++i) {
                     codes.add(new MoveTAC(currentFrame.peek(), new ConstAccess(i), inductionVar));
@@ -463,6 +463,7 @@ public class Semant {
 
         IntermediateCodeList codes = new IntermediateCodeList();
         if (!notifier.hasError()) {
+
             codes.addAll(rd.codes);
             codes.addAll(re.codes);
         }

@@ -322,7 +322,7 @@ bin/mips32/Instruction.class: bin/arch/Const.class bin/arch/Instruction.class bi
 bin/mips32/InstructionGenerator.class: bin/mips32/Instruction.class bin/arch/InstructionGenerator.class src/mips32/InstructionGenerator.java
 	$(JC) src/mips32/InstructionGenerator.java
 
-bin/mips32/Optimizer.class: bin/regalloc/Register.class bin/frame/Frame.class bin/mips32/InstructionList.class bin/mips32/InstructionGenerator.class bin/intermediate/IR.class bin/optimization/BasicBlockOptimizer.class bin/flow/FlowGraph.class bin/flow/LifeAnalysis.class bin/mips32/Util.class src/mips32/Optimizer.java
+bin/mips32/Optimizer.class: bin/regalloc/Register.class bin/frame/Frame.class bin/mips32/InstructionList.class bin/mips32/InstructionGenerator.class bin/intermediate/IR.class bin/optimization/BasicBlockOptimizer.class bin/optimization/LoopInvariantCodeMotion.class bin/flow/FlowGraph.class bin/flow/LifeAnalysis.class bin/mips32/Util.class src/mips32/Optimizer.java
 	$(JC) src/mips32/Optimizer.java
 
 bin/mips32/SpimAsm.class: bin/regalloc/Register.class bin/mips32/InstructionList.class src/mips32/SpimAsm.java
@@ -347,11 +347,21 @@ bin/flow/FlowGraph.class: bin/util/Graph.class bin/flow/BasicBlock.class src/flo
 bin/flow/LifeAnalysis.class: bin/util/Graph.class bin/flow/BasicBlock.class bin/arch/Instruction.class bin/intermediate/Temp.class bin/flow/FlowGraph.class src/flow/LifeAnalysis.java
 	$(JC) src/flow/LifeAnalysis.java
 
+bin/flow/ReachingDefinition.class: bin/flow/BasicBlock.class bin/arch/Instruction.class bin/intermediate/Temp.class bin/flow/FlowGraph.class src/flow/ReachingDefinition.java
+	$(JC) src/flow/ReachingDefinition.java
+
+bin/flow/DominatingSet.class: bin/flow/FlowGraph.class bin/flow/BasicBlock.class src/flow/DominatingSet.java
+	$(JC) src/flow/DominatingSet.java
+
 bin/optimization/InlineOptimizer.class: bin/frame/Frame.class absyn bin/symbol/Symbol.class bin/symbol/Table.class bin/intermediate/IR.class bin/intermediate/Temp.class bin/intermediate/Label.class bin/intermediate/CallTAC.class bin/intermediate/MoveTAC.class bin/util/Graph.class bin/intermediate/IntermediateCodeList.class src/optimization/InlineOptimizer.java
 	$(JC) src/optimization/InlineOptimizer.java
 
 bin/optimization/BasicBlockOptimizer.class: bin/frame/Frame.class bin/arch/InstructionGenerator.class bin/flow/BasicBlock.class bin/flow/LifeAnalysis.class bin/intermediate/Temp.class bin/util/Graph.class bin/arch/Instruction.class src/optimization/BasicBlockOptimizer.java
 	$(JC) src/optimization/BasicBlockOptimizer.java
+
+bin/optimization/LoopInvariantCodeMotion.class: bin/flow/FlowGraph.class bin/arch/Instruction.class bin/flow/BasicBlock.class bin/flow/DominatingSet.class bin/intermediate/Temp.class bin/util/Graph.class src/optimization/LoopInvariantCodeMotion.java
+	$(JC) src/optimization/LoopInvariantCodeMotion.java
+
 
 clean:
 	rm -fR src/scanner/Scanner.java src/scanner/Scanner.java~ src/parser/Parser.java src/parser/sym.java bin/Main.class bin/parser bin/scanner bin/absyn bin/symbol bin/tester bin/type bin/semant bin/notifier bin/intermediate bin/arch bin/frame bin/util bin/mips32 bin/regalloc bin/flow bin/optimization

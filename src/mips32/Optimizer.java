@@ -5,6 +5,7 @@ import java.util.*;
 import intermediate.Label;
 import intermediate.IR;
 import optimization.BasicBlockOptimizer;
+import optimization.LoopInvariantCodeMotion;
 import intermediate.Temp;
 import arch.Const;
 import frame.Frame;
@@ -21,6 +22,9 @@ public class Optimizer {
         // Jump zipping
         list = jumpZipping(list);
 
+        // Loop invariant code motion
+        list = loopInvariantCodeMotion(list);
+
         // Basic Block Optimize
         list = basicBlockOptimize(list);
 
@@ -30,7 +34,7 @@ public class Optimizer {
         return list;
     }
 
-    InstructionList finalOptimize(InstructionList list, Map<Temp, Register> map) {
+    InstructionList finalOptimize(InstructionList list, Map<Temp, Register> map, Set<Temp> usedDisplays) {
         InstructionList ret = new InstructionList();
         for (LabeledInstruction i: list) {
             if (i.label != null)
@@ -41,6 +45,10 @@ public class Optimizer {
                 if (i.instruction.type == Instruction.Type.MOVE
                         && map.get(i.instruction.dst) == map.get(i.instruction.src1))
                     dead = true;
+                else if (i.instruction.display != null
+                        && !usedDisplays.contains(i.instruction.display))
+                    dead = true;
+
                 if (!dead)
                     ret.add(i.instruction);
             }
@@ -69,6 +77,7 @@ public class Optimizer {
 
     private InstructionList peepHoleOptimize(InstructionList list) {
         LabeledInstruction li1 = list.head, li2 = null;
+        Map<Label, LabeledInstruction> labelMap = buildLabelMap(list);
         while (li1 != null) {
             while (li1 != null && li1.instruction == null)
                 li1 = li1.next;
@@ -82,6 +91,18 @@ public class Optimizer {
                 break;
 
             Instruction i1 = li1.instruction, i2 = li2.instruction;
+
+            /*
+            if (i1.type == Instruction.Type.LI) {
+                LabeledInstruction next = nextInstruction(labelMap, li1);
+                if (next != null && next.instruction.type == Instruction.Type.MOVE
+                        && next.instruction.src1 == i1.dst) {
+                    next.instruction.type = Instruction.Type.LI;
+                    next.instruction.src1 = null;
+                    next.instruction.imm = i1.imm;
+                }
+            }
+            */
 
             if (i1.type == Instruction.Type.LI && i2.type == Instruction.Type.MUL
                     && i1.imm.value() > 0 && isPowerOfTwo(i1.imm.value())) {
@@ -294,16 +315,21 @@ public class Optimizer {
         return ret;
     }
 
-    private InstructionList jumpZipping(InstructionList list) {
-        // Add branch labels
-        list = addBranchLabels(list);
-
-        // Build label map
+    Map<Label, LabeledInstruction> buildLabelMap(InstructionList list) {
         Map<Label, LabeledInstruction> labelMap = new HashMap<Label, LabeledInstruction>();
         for (LabeledInstruction li: list) {
             if (li.label != null)
                 labelMap.put(li.label, li);
         }
+        return labelMap;
+    }
+
+    private InstructionList jumpZipping(InstructionList list) {
+        // Add branch labels
+        list = addBranchLabels(list);
+
+        // Build label map
+        Map<Label, LabeledInstruction> labelMap = buildLabelMap(list);
 
         // Jump zipping
         LabeledInstruction li = list.head;
@@ -379,7 +405,7 @@ public class Optimizer {
 
     private InstructionList basicBlockOptimize(InstructionList list) {
         FlowGraph flow = Util.buildFlowGraph(list);
-        flow.removeUnreachableCodes();
+        flow.removeUnreachableNodes();
         LifeAnalysis life = new LifeAnalysis(flow);
         InstructionGenerator gen = new InstructionGenerator();
         for (BasicBlock b: flow.nodes()) {
@@ -406,6 +432,13 @@ public class Optimizer {
             Scanner input = new Scanner(System.in);
             s = input.next();*/
         }
+        return rewrite(flow);
+    }
+
+    private InstructionList loopInvariantCodeMotion(InstructionList list) {
+        FlowGraph flow = Util.buildFlowGraph(list);
+        LoopInvariantCodeMotion opt = new LoopInvariantCodeMotion(flow);
+        flow = opt.optimize();
         return rewrite(flow);
     }
 
