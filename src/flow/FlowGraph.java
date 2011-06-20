@@ -27,6 +27,10 @@ public class FlowGraph {
             addNext(from, to);
     }
 
+    public boolean isEdge(BasicBlock from, BasicBlock to) {
+        return graph.isDirectedEdge(from, to);
+    }
+
     public void addNext(BasicBlock from, BasicBlock to) {
         next.put(from, to);
     }

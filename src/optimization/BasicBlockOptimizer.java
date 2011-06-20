@@ -190,9 +190,9 @@ public class BasicBlockOptimizer {
 
     boolean sameType(Node n, Instruction i) {
         for (Instruction ii: n.ins)
-            if (!ii.sameExceptTemps(i))
-                return false;
-        return true;
+            if (!ii.isMove() && ii.sameExceptTemps(i))
+                return true;
+        return i.isMove();
     }
 
     int copyPropagation(BasicBlock block, List<Integer> moveFrom, List<Integer> moveAfter) {
@@ -353,11 +353,12 @@ public class BasicBlockOptimizer {
                 if (i.isMove())
                     n = versionNode(latestVersion(i.useList().get(0)));
                 else if (uMap.containsKey(useList)) {
-                    for (Node nn: uMap.get(useList))
+                    for (Node nn: uMap.get(useList)) {
                         if (sameType(nn, i)) {
                             n = nn;
                             break;
                         }
+                    }
                 }
                 if (n == null) {
                     List<Node> actualUseList = new ArrayList<Node>();

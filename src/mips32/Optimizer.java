@@ -23,7 +23,7 @@ public class Optimizer {
         list = jumpZipping(list);
 
         // Loop invariant code motion
-        list = loopInvariantCodeMotion(list);
+        //list = loopInvariantCodeMotion(list);
 
         // Basic Block Optimize
         list = basicBlockOptimize(list);

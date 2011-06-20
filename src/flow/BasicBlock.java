@@ -8,12 +8,14 @@ import arch.Instruction;
 public class BasicBlock implements Iterable<Instruction> {
     private LinkedList<Instruction> list = new LinkedList<Instruction>();
     public ArrayList<Label> labels = new ArrayList<Label>();
+    private Map<Instruction, Integer> order = new HashMap<Instruction, Integer>();
 
     private Set<Temp> uses = new HashSet<Temp>();
     private Set<Temp> defs = new HashSet<Temp>();
 
     public void add(Instruction ins) {
         list.add(ins);
+        order.put(ins, new Integer(order.size()));
 
         Set<Temp> t = new HashSet<Temp>(ins.use());
         t.removeAll(defs);
@@ -21,8 +23,18 @@ public class BasicBlock implements Iterable<Instruction> {
         defs.addAll(ins.def());
     }
 
+    public boolean before(Instruction a, Instruction b) {
+        Integer x = order.get(a), y = order.get(b);
+        if (a == null || b == null)
+            return false;
+        return x.intValue() < y.intValue();
+    }
+
     public void replace(BasicBlock block) {
         list = new LinkedList<Instruction>();
+        uses = new HashSet<Temp>();
+        defs = new HashSet<Temp>();
+        order = new HashMap<Instruction, Integer>();
         for (Instruction i: block.list)
             add(i);
     }
