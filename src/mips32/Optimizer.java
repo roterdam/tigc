@@ -22,10 +22,13 @@ public class Optimizer {
         // Jump zipping
         list = jumpZipping(list);
 
-        // Loop invariant code motion
-        //list = loopInvariantCodeMotion(list);
-
         // Basic Block Optimize
+        list = basicBlockOptimize(list);
+
+        // Loop invariant code motion
+        list = loopInvariantCodeMotion(list);
+
+        // Basic Block Optimize again
         list = basicBlockOptimize(list);
 
         // Remove dead code
