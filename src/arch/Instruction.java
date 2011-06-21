@@ -2,6 +2,7 @@ package arch;
 
 import java.util.*;
 import intermediate.Temp;
+import intermediate.Label;
 import frame.Frame;
 
 public abstract class Instruction {
@@ -16,6 +17,7 @@ public abstract class Instruction {
 
     public abstract boolean hasSideEffects();
     public abstract boolean isJump();
+    public abstract boolean isRedirectable();
     public abstract boolean isLoad();
     public abstract boolean isStore();
     // if isMove() returns true, then useList().get(0) must be the move source

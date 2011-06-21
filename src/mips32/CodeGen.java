@@ -191,7 +191,8 @@ public class CodeGen {
             }
         }
 
-        FlowGraph graph = Util.buildFlowGraph(list);
+        FlowGraphGenerator fg = new FlowGraphGenerator();
+        FlowGraph graph = fg.build(list);
         LifeAnalysis life = new LifeAnalysis(graph);
         fillCallSaves(list, life);
 
@@ -259,8 +260,8 @@ public class CodeGen {
 
         Map<Temp, Register> map = null;
 
-        while (true) {        
-            graph = Util.buildFlowGraph(list);
+        while (true) {
+            graph = fg.build(list);
             life = new LifeAnalysis(graph);
             Graph<Temp> ig = buildInterferenceGraph(list, life);
             RegAlloc regAlloc = new RegAlloc(ig, registers, new HashMap<Temp, Register>(preColor), candidates);

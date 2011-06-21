@@ -2,16 +2,22 @@ package optimization;
 
 import arch.Instruction;
 import intermediate.Temp;
+import intermediate.Label;
 import flow.FlowGraph;
 import flow.DominatingSet;
 import flow.BasicBlock;
+import flow.FlowGraphGenerator;
+import flow.InstructionRewriter;
+import arch.InstructionList;
 import java.util.*;
 
 public class LoopInvariantCodeMotion {
-    FlowGraph flow;
+    FlowGraphGenerator fg;
+    InstructionRewriter rewriter;
 
-    public LoopInvariantCodeMotion(FlowGraph flow) {
-        this.flow = flow;
+    public LoopInvariantCodeMotion(FlowGraphGenerator fg, InstructionRewriter rewriter) {
+        this.fg = fg;
+        this.rewriter = rewriter;
     }
 
     private boolean doms(DominatingSet dom, Map<Instruction, BasicBlock> instructionFrom,
@@ -26,12 +32,26 @@ public class LoopInvariantCodeMotion {
             return ba.before(a, b);
     }
 
-    private void processLoop(BasicBlock head, DominatingSet dom) {
+    private Set<BasicBlock> reachBlocks(FlowGraph flow, BasicBlock head) {
+        Set<BasicBlock> reach = new HashSet<BasicBlock>();
+        BasicBlock current = head;
+        while (!reach.contains(current)) {
+            reach.add(current);
+            if (flow.succ(current).size() != 1)
+                break;
+            current = new ArrayList<BasicBlock>(flow.succ(current)).get(0);
+        };
+        return reach;
+    }
+
+    private InstructionList processLoop(FlowGraph flow, BasicBlock head, BasicBlock tail, DominatingSet dom) {
         Map<Temp, List<Instruction>> definitions = new HashMap<Temp, List<Instruction>>();
         Map<Instruction, BasicBlock> instructionFrom = new HashMap<Instruction, BasicBlock>();
         Map<Temp, Set<Instruction>> useList = new HashMap<Temp, Set<Instruction>>();
         Set<Temp> invariants = new HashSet<Temp>();
-        Set<Instruction> invariantIns = new HashSet<Instruction>();
+        List<Instruction> invariantIns = new ArrayList<Instruction>();
+        List<Label> oldPlace = head.labels;
+
         for (BasicBlock b: dom.get(head)) {
             for (Instruction i: b) {
                 instructionFrom.put(i, b);
@@ -48,60 +68,98 @@ public class LoopInvariantCodeMotion {
             }
         }
 
-        for (BasicBlock b: dom.get(head)) {
-            for (Instruction i: b) {
-                if (!i.isJump() && !i.isLoad() && !i.isStore()
-                        && !i.hasSideEffects()) {
-                    
-                    boolean fail = false;
-                    Set<Instruction> defPlace = new HashSet<Instruction>();
-                    for (Temp t: i.def()) {
-                        defPlace.addAll(definitions.get(t));
-                        if (useList.containsKey(t)) {
-                            for (Instruction use: useList.get(t))
-                                if (!doms(dom, instructionFrom, i, use)) {
-                                     fail = true;
-                                     break;
-                                }
-                            if (fail)
-                                break;
+        Set<BasicBlock> enumBlocks = new HashSet<BasicBlock>(dom.get(head));
+        enumBlocks.retainAll(reachBlocks(flow, head));
+        boolean change = false;
+        boolean motion = false;
+        do {
+            change = false;
+            for (BasicBlock b: enumBlocks) {
+                for (Instruction i: b) {
+                    if (!i.isJump() && !i.isLoad() && !i.isStore()
+                            && !i.hasSideEffects()) {
+
+                        boolean fail = false;
+                        Set<Instruction> defPlace = new HashSet<Instruction>();
+                        for (Temp t: i.def()) {
+                            defPlace.addAll(definitions.get(t));
+                            if (useList.containsKey(t)) {
+                                for (Instruction use: useList.get(t))
+                                    if (!doms(dom, instructionFrom, i, use)) {
+                                        fail = true;
+                                        break;
+                                    }
+                                if (fail)
+                                    break;
+                            }
                         }
+
+                        if (fail || defPlace.size() != 1)
+                            continue;
+
+                        for (Temp t: i.useList()) {
+                            if (definitions.containsKey(t) && !invariants.contains(t)) {
+                                fail = true;
+                                break;
+                            }
+                        }
+
+                        if (fail)
+                            continue;
+
+                        change = true;
+                        motion = true;
+                        for (Temp t: i.def())
+                            invariants.add(t);
+                        invariantIns.add(i);
+
+                        b.removeInstruction(i);
                     }
+                }
+            }
+        } while (change);
 
-                    if (fail || defPlace.size() != 1)
-                        continue;
+        if (!motion)
+            return null;
 
-                    for (Temp t: i.useList()) {
-                        if (definitions.containsKey(t) && !invariants.contains(t)) {
-                            fail = true;
+        Label newPlace = Label.newLabel();
+        Instruction tailIns = tail.getLast();
+
+        InstructionList list = rewriter.rewrite(flow);
+        list.redirect(tailIns, oldPlace, newPlace);
+        list.replaceLabel(oldPlace, newPlace);
+        list.addAllBefore(oldPlace, invariantIns, newPlace);
+
+        return list;
+    }
+
+    public InstructionList optimize(InstructionList list) {
+        boolean change = false;
+
+        do {
+            change = false;
+
+            FlowGraph flow = fg.build(list);
+            DominatingSet dom = new DominatingSet(flow);
+
+            for (BasicBlock head: flow.nodes()) {
+                for (BasicBlock tail: dom.get(head)) {
+                    if (!tail.isInsEmpty() && tail.getLast().isRedirectable()
+                            && flow.isEdge(tail, head)) {
+
+                        InstructionList result = processLoop(flow, head, tail, dom);
+                        if (result != null) {
+                            change = true;
+                            list = result;
                             break;
                         }
                     }
-
-                    if (fail)
-                        continue;
-
-                    for (Temp t: i.def())
-                        invariants.add(t);
-                    invariantIns.add(i);
-                    System.out.println(i.toString());
                 }
+                if (change)
+                    break;
             }
-        }
+        } while (change);
 
-    }
-
-    public FlowGraph optimize() {
-        DominatingSet dom = new DominatingSet(flow);
-
-        for (BasicBlock head: flow.nodes()) {
-            for (BasicBlock tail: dom.get(head)) {
-                if (flow.isEdge(tail, head)) {
-                    processLoop(head, dom);
-                }
-            }
-        }
-
-        return flow;
+        return list;
     }
 }

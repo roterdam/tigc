@@ -432,6 +432,13 @@ public class Instruction extends arch.Instruction {
             return false;
     }
 
+    public boolean isRedirectable() {
+        if (type == Type.J || type == Type.JAL || isBranch())
+            return true;
+        else
+            return false;
+    }
+
     public boolean isBranch() {
         if (type == Type.BEQ || type == Type.BNE
                 || type == Type.BGT || type == Type.BGE

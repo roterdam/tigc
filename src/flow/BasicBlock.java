@@ -6,16 +6,17 @@ import intermediate.Temp;
 import arch.Instruction;
 
 public class BasicBlock implements Iterable<Instruction> {
-    private LinkedList<Instruction> list = new LinkedList<Instruction>();
     public ArrayList<Label> labels = new ArrayList<Label>();
+    private LinkedList<Instruction> list = new LinkedList<Instruction>();
     private Map<Instruction, Integer> order = new HashMap<Instruction, Integer>();
+    private int n = 0;
 
     private Set<Temp> uses = new HashSet<Temp>();
     private Set<Temp> defs = new HashSet<Temp>();
 
     public void add(Instruction ins) {
         list.add(ins);
-        order.put(ins, new Integer(order.size()));
+        order.put(ins, new Integer(n++));
 
         Set<Temp> t = new HashSet<Temp>(ins.use());
         t.removeAll(defs);
@@ -31,12 +32,23 @@ public class BasicBlock implements Iterable<Instruction> {
     }
 
     public void replace(BasicBlock block) {
+        replace(block.list);
+    }
+
+    private void replace(List<Instruction> insList) {
         list = new LinkedList<Instruction>();
         uses = new HashSet<Temp>();
         defs = new HashSet<Temp>();
         order = new HashMap<Instruction, Integer>();
-        for (Instruction i: block.list)
+        n = 0;
+        for (Instruction i: insList)
             add(i);
+    }
+
+    public void removeInstruction(Instruction ins) {
+        List<Instruction> newList = new LinkedList<Instruction>(list);
+        newList.remove(ins);
+        replace(newList);
     }
 
     public void add(Label label) {

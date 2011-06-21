@@ -349,7 +349,8 @@ public class Optimizer {
         }
 
         // Rewrite blocks
-        FlowGraph flow = Util.buildFlowGraph(list);
+        FlowGraphGenerator fg = new FlowGraphGenerator();
+        FlowGraph flow = fg.build(list);
         list = rewrite(flow);
 
         // Remove direct jumps
@@ -404,7 +405,8 @@ public class Optimizer {
     }
 
     private InstructionList basicBlockOptimize(InstructionList list) {
-        FlowGraph flow = Util.buildFlowGraph(list);
+        FlowGraphGenerator fg = new FlowGraphGenerator();
+        FlowGraph flow = fg.build(list);
         flow.removeUnreachableNodes();
         LifeAnalysis life = new LifeAnalysis(flow);
         InstructionGenerator gen = new InstructionGenerator();
@@ -436,10 +438,8 @@ public class Optimizer {
     }
 
     private InstructionList loopInvariantCodeMotion(InstructionList list) {
-        FlowGraph flow = Util.buildFlowGraph(list);
-        LoopInvariantCodeMotion opt = new LoopInvariantCodeMotion(flow);
-        flow = opt.optimize();
-        return rewrite(flow);
+        LoopInvariantCodeMotion opt = new LoopInvariantCodeMotion(new FlowGraphGenerator(), new InstructionRewriter());
+        return (InstructionList) opt.optimize(list);
     }
 
     private InstructionList removeDeadCode(InstructionList list) {
@@ -449,7 +449,8 @@ public class Optimizer {
         boolean change = false;
         do {
             change = false;
-            flow = Util.buildFlowGraph(list);
+            FlowGraphGenerator fg = new FlowGraphGenerator();
+            flow = fg.build(list);
             life = new LifeAnalysis(flow);
             nlist = new InstructionList();
             for (LabeledInstruction i: list) {
@@ -474,62 +475,9 @@ public class Optimizer {
         return list;
     }
 
-    private void putCode(InstructionList list, BasicBlock block) {
-        for (Label l: block.labels)
-            list.add(l);
-        for (arch.Instruction i: block)
-            list.add((Instruction) i);
-    }
-
-    private void rewriteRecursive(FlowGraph flow, BasicBlock current, Map<BasicBlock, BasicBlock> head, InstructionList res, Set<BasicBlock> visited) {
-        if (current == null || visited.contains(current))
-            return;
-
-        if (head.get(current) != current) {
-            rewriteRecursive(flow, head.get(current), head, res, visited);
-            return;
-        }
-
-        Set<BasicBlock> remaining = new HashSet<BasicBlock>();
-        while (true) {
-            visited.add(current);
-            putCode(res, current);
-
-            remaining.addAll(flow.succ(current));
-
-            if (flow.next(current) != null)
-                current = flow.next(current);
-            else
-                break;
-        }
-
-        for (BasicBlock b: remaining)
-            rewriteRecursive(flow, b, head, res, visited);
-    }
-
     private InstructionList rewrite(FlowGraph flow) {
-        Map<BasicBlock, BasicBlock> prev = new HashMap<BasicBlock, BasicBlock>();
-        for (BasicBlock b: flow.nodes())
-            if (flow.next(b) != null)
-                prev.put(flow.next(b), b);
-
-        Map<BasicBlock, BasicBlock> head = new HashMap<BasicBlock, BasicBlock>();
-        for (BasicBlock b: flow.nodes()) {
-            if (prev.containsKey(b)) {
-                BasicBlock h = prev.get(b);
-                while (prev.containsKey(h))
-                    h = prev.get(h);
-                prev.put(b, h);
-                head.put(b, h);
-            } else
-                head.put(b, b);
-        }
-
-        InstructionList ret = new InstructionList();
-        BasicBlock current = flow.entry;
-        Set<BasicBlock> visited = new HashSet<BasicBlock>();
-        rewriteRecursive(flow, current, head, ret, visited);
-        return ret;
+        InstructionRewriter writer = new InstructionRewriter();
+        return writer.rewrite(flow);
     }
 }
 

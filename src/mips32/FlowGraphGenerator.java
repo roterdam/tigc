@@ -5,8 +5,12 @@ import flow.FlowGraph;
 import java.util.*;
 import intermediate.Label;
 
-class Util {
-    static FlowGraph buildFlowGraph(InstructionList list) {
+public class FlowGraphGenerator extends flow.FlowGraphGenerator {
+    public FlowGraph build(arch.InstructionList olist) {
+        if (!(olist instanceof InstructionList))
+            return null;
+
+        InstructionList list = (InstructionList) olist;
         HashMap<Label, BasicBlock> labelMap = new HashMap<Label, BasicBlock>();
         HashMap<BasicBlock, BasicBlock> next = new HashMap<BasicBlock, BasicBlock>();
         BasicBlock current = new BasicBlock(), t = null;
