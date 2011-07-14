@@ -206,9 +206,12 @@ public class Semant {
                  * I wrote this only for the test
                  * REMOVE this later after
                  */
+
                 boolean multi = false;
                 if (init.type.actual() instanceof type.Array || init.type.actual() instanceof type.Record)
                     multi = true;
+
+                multi = false;
 
                 if (!multi)
                     codes.addAll(init.codes);
